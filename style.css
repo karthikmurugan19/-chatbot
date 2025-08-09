@@ -13,7 +13,7 @@
 body{
   display:flex; align-items:center; justify-content:center;
   min-height:100vh;
-  background: linear-gradient(135deg,#c4d82d,#f38321); /* fixed */
+  background: linear-gradient(135deg, #ffffff, #f5f5f5); /* fixed */
 }
 
 .material-symbols-rounded{
@@ -106,3 +106,4 @@ body{
 .bot-message .image-preview-wrap img{
   width:120px; height:120px; object-fit:cover; border-radius:12px; border:1px solid #e5e7eb;
 }
+
