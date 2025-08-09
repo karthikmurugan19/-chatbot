@@ -2,14 +2,12 @@ const chatBody = document.querySelector(".chat-body");
 const messageInput = document.querySelector(".message-input");
 const sendMessageButton = document.querySelector("#send-message");
 
-const API_KEY = "AIzaSyDjWSYA7pDcUiddC3SvhJnxTXBAie1j4WE"; // 🔐 Replace with your actual Gemini API Key
+const API_KEY = "AIzaSyDjWSYA7pDcUiddC3SvhJnxTXBAie1j4WE"; // ⚠️ don't expose in prod
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
 
-const userData = {
-  message: null
-};
+const userData = { message: null };
 
-// Helper: Create chat message bubble
+// --- utils ---
 const createMessageElement = (content, ...classes) => {
   const div = document.createElement("div");
   div.classList.add("message", ...classes);
@@ -17,7 +15,44 @@ const createMessageElement = (content, ...classes) => {
   return div;
 };
 
-// Generate bot reply (Healthy Planet–restricted)
+const scrollToBottom = () => {
+  // run after layout changes settle
+  requestAnimationFrame(() => {
+    chatBody.scrollTop = chatBody.scrollHeight;
+  });
+};
+
+// aggressively clean markdown/extra formatting without killing normal text
+const cleanBotText = (raw = "") =>
+  raw
+    // code fences
+    .replace(/```[\s\S]*?```/g, (m) => m.replace(/```/g, "")) // keep inner text
+    // bold/italics/underline/strikethrough
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/__(.*?)__/g, "$1")
+    .replace(/\*(.*?)\*/g, "$1")
+    .replace(/_(.*?)_/g, "$1")
+    .replace(/~~(.*?)~~/g, "$1")
+    // inline code/backticks
+    .replace(/`([^`]+)`/g, "$1")
+    // markdown links & images -> keep visible text/alt
+    .replace(/!\[(.*?)\]\(.*?\)/g, "$1")
+    .replace(/\[(.*?)\]\(.*?\)/g, "$1")
+    // headings / blockquotes / list bullets
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+    .replace(/^\s{0,3}>\s?/gm, "")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/^\s*\d+\.\s+/gm, "")
+    // table pipes
+    .replace(/^\|.*\|$/gm, (line) => line.replace(/\|/g, " ").replace(/-{3,}/g, ""))
+    // stray HTML tags (leave angle-bracket words)
+    .replace(/<\/?([a-z][a-z0-9]*)\b[^>]*>/gi, "")
+    // collapse repeats / whitespace
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+// --- bot call ---
 const generateBotResponse = async (incomingMessageDiv) => {
   const messageElement = incomingMessageDiv.querySelector(".message-text");
 
@@ -36,10 +71,7 @@ If asked anything unrelated, reply with: "I'm here to help with Healthy Planet C
             }
           ]
         },
-        {
-          role: "user",
-          parts: [{ text: userData.message }]
-        }
+        { role: "user", parts: [{ text: userData.message }] }
       ]
     })
   };
@@ -48,58 +80,63 @@ If asked anything unrelated, reply with: "I'm here to help with Healthy Planet C
     const response = await fetch(API_URL, requestOptions);
     const data = await response.json();
 
-    if (!response.ok) throw new Error(data.error.message);
+    if (!response.ok) throw new Error(data?.error?.message || "Request failed");
 
-    const apiResponseText = data.candidates[0].content.parts[0].text.trim();
+    const raw =
+      data?.candidates?.[0]?.content?.parts?.[0]?.text ??
+      "Sorry, I couldn't generate a response.";
+    const apiResponseText = cleanBotText(raw);
+
     messageElement.innerText = apiResponseText;
-  } catch (error) {
-    console.error("❌ API Error:", error);
+  } catch (err) {
+    console.error("❌ API Error:", err);
     messageElement.innerText = "⚠️ Something went wrong. Please try again later.";
+  } finally {
+    // remove thinking & snap to bottom
+    incomingMessageDiv.classList.remove("thinking");
+    scrollToBottom();
   }
 };
 
-// Send user message
+// --- sending flow ---
 const handleOutgoingMessage = (e) => {
   e.preventDefault();
   userData.message = messageInput.value.trim();
   if (!userData.message) return;
 
-  // Show user message
+  // show user bubble
   const messageContent = `<div class="message-text"></div>`;
   const outgoingMessageDiv = createMessageElement(messageContent, "user-message");
   outgoingMessageDiv.querySelector(".message-text").textContent = userData.message;
   chatBody.appendChild(outgoingMessageDiv);
   messageInput.value = "";
-  chatBody.scrollTop = chatBody.scrollHeight;
+  scrollToBottom();
 
-  // Show thinking indicator
+  // show thinking bubble
   const botThinkingContent = `
-    <svg class="bot-avatar" width="40" height="40" viewBox="0 0 50 50">
-      <!-- You can replace with your own SVG -->
-      <circle cx="25" cy="25" r="20" fill="#45B94E"/>
+    <svg class="bot-avatar" width="40" height="40" viewBox="0 0 50 50" aria-hidden="true">
+      <circle cx="25" cy="25" r="20" fill="#45B94E"></circle>
     </svg>
     <div class="message-text">
       <div class="thinking-indicator">
-        <div class="dot"></div>
-        <div class="dot"></div>
-        <div class="dot"></div>
+        <div class="dot"></div><div class="dot"></div><div class="dot"></div>
       </div>
     </div>
   `;
-  const incomingMessageDiv = createMessageElement(botThinkingContent, "bot-message", "thinking");
+  const incomingMessageDiv = createMessageElement(
+    botThinkingContent,
+    "bot-message",
+    "thinking"
+  );
   chatBody.appendChild(incomingMessageDiv);
-  chatBody.scrollTop = chatBody.scrollHeight;
+  scrollToBottom();
 
-  // Replace with API response
+  // call API
   generateBotResponse(incomingMessageDiv);
 };
 
-// Send message on Enter key
+// enter key & button
 messageInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && messageInput.value.trim()) {
-    handleOutgoingMessage(e);
-  }
+  if (e.key === "Enter" && messageInput.value.trim()) handleOutgoingMessage(e);
 });
-
-// Send message on button click
 sendMessageButton.addEventListener("click", (e) => handleOutgoingMessage(e));
