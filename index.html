@@ -2,62 +2,61 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, iniitial-scale=1.0" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"/>
   <title>Chatbot</title>
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css" />
+
+  <!-- Material Symbols -->
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded" rel="stylesheet"/>
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="style.css"/>
+
+  <!-- Emoji Button (CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/emoji-button@latest/dist/index.min.js"></script>
 </head>
 <body>
   <!-- Floating launcher bubble -->
   <button id="chat-launcher" aria-label="Open chat">
-    <!-- your logo in the bubble -->
+    <!-- your logo -->
     <svg width="28" height="28" viewBox="0 0 50 50" fill="none" aria-hidden="true">
       <path d="M18.543 4C18.543 4 22.9046 4.50373 24.6777 6.50586C25.5887 7.53473 26.074 9.2529 26.332 10.6797C26.7511 9.25115 27.4214 7.66429 28.4707 6.70996C30.7322 4.6533 35.9967 4.39481 36.0225 4.39355C36.0143 4.45008 35.2556 9.64088 33.001 11.6914C32.0255 12.5786 30.5372 13.0877 29.1582 13.3818C36.3165 15.0393 41.6514 21.456 41.6514 29.1182C41.6512 38.0384 34.4202 45.2695 25.5 45.2695C16.5798 45.2695 9.34885 38.0384 9.34863 29.1182C9.34863 20.1978 16.5796 12.9658 25.5 12.9658C25.6041 12.9658 25.7079 12.9678 25.8115 12.9697C25.8121 12.9665 25.8129 12.9632 25.8135 12.96C24.4243 12.6525 21.5974 11.872 20.2881 10.3936C18.5152 8.39119 18.543 4 18.543 4Z" fill="#005D2B"/>
       <ellipse cx="25.5" cy="29" rx="14.5" ry="15" fill="#45B94E"/>
     </svg>
   </button>
 
-  <!-- Chat window -->
-  <div class="chatbot-popup" id="chatbot" aria-hidden="true">
+  <!-- Chat Window -->
+  <div class="chatbot-popup open" id="chatbot" aria-hidden="false">
     <div class="chat-header">
       <div class="header-info">
-        <svg class="chatbot-logo" width="50" height="50" viewBox="0 0 50 50" fill="none" aria-hidden="true">
+        <svg class="chatbot-logo" width="40" height="40" viewBox="0 0 50 50" fill="none" aria-hidden="true">
           <path d="M18.543 4C18.543 4 22.9046 4.50373 24.6777 6.50586C25.5887 7.53473 26.074 9.2529 26.332 10.6797C26.7511 9.25115 27.4214 7.66429 28.4707 6.70996C30.7322 4.6533 35.9967 4.39481 36.0225 4.39355C36.0143 4.45008 35.2556 9.64088 33.001 11.6914C32.0255 12.5786 30.5372 13.0877 29.1582 13.3818C36.3165 15.0393 41.6514 21.456 41.6514 29.1182C41.6512 38.0384 34.4202 45.2695 25.5 45.2695C16.5798 45.2695 9.34885 38.0384 9.34863 29.1182C9.34863 20.1978 16.5796 12.9658 25.5 12.9658C25.6041 12.9658 25.7079 12.9678 25.8115 12.9697C25.8121 12.9665 25.8129 12.9632 25.8135 12.96C24.4243 12.6525 21.5974 11.872 20.2881 10.3936C18.5152 8.39119 18.543 4 18.543 4Z" fill="#005D2B"/>
           <ellipse cx="25.5" cy="29" rx="14.5" ry="15" fill="#45B94E"/>
         </svg>
         <h2 class="logo-text">Chatbot</h2>
       </div>
-      <button id="minimize-chat" class="material-symbols-rounded" aria-label="Minimize chat" type="button">keyboard_arrow_down</button>
+      <button id="minimize-chat" class="material-symbols-rounded" aria-label="Minimize">keyboard_arrow_down</button>
     </div>
 
-    <div class="chat-content" id="chat-content">
-      <div class="chat-body">
-        <div class="message bot-message">
-          <svg class="bot-avatar" width="50" height="50" viewBox="0 0 50 50" fill="none" aria-hidden="true">
-            <circle cx="25" cy="25" r="20" fill="#0055683a"></circle>
-          </svg>
-          <div class="message-text">
-            Hey There 👋<br />Welcome to Healthy Planet Canada Online Assistant.<br />How may I assist you today?
-          </div>
-        </div>
-      </div>
+    <div class="chat-body"></div>
 
-      <div class="chat-footer">
-        <form action="#" class="chat-form">
-          <textarea placeholder="Message..." class="message-input" required></textarea>
-          <div class="chat-contorls">
-            <button type="button" id="btn-camera" class="material-symbols-rounded" title="Open camera">sentiment_satisfied</button>
-            <button type="button" id="btn-attach" class="material-symbols-rounded" title="Attach image">attach_file</button>
-            <button type="submit" id="send-message" class="material-symbols-rounded" title="Send">arrow_upward</button>
-          </div>
-          <input id="file-attach" type="file" accept="image/*" multiple hidden />
-          <input id="file-camera" type="file" accept="image/*" capture="environment" hidden />
-        </form>
-      </div>
+    <div class="chat-footer">
+      <form class="chat-form">
+        <textarea placeholder="Message..." class="message-input" required></textarea>
+        <div class="chat-contorls">
+          <button type="button" id="btn-emoji" class="material-symbols-rounded" title="Emoji">emoji_emotions</button>
+          <button type="button" id="btn-camera" class="material-symbols-rounded" title="Open camera">photo_camera</button>
+          <button type="button" id="btn-attach" class="material-symbols-rounded" title="Attach image">attach_file</button>
+          <button type="submit" id="send-message" class="material-symbols-rounded" title="Send">arrow_upward</button>
+        </div>
+        <input id="file-attach" type="file" accept="image/*" multiple hidden/>
+        <input id="file-camera" type="file" accept="image/*" capture="environment" hidden/>
+      </form>
     </div>
   </div>
 
+  <!-- Main app script -->
   <script src="script.js"></script>
 </body>
 </html>
-
