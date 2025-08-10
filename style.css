@@ -8,17 +8,17 @@ body{
   background: linear-gradient(135deg, #ffffff, #f5f5f5);
 }
 
-/* Floating bubble */
-#chat-launcher{
+/* Minimized bubble */
+#chat-bubble{
   position:fixed; bottom:20px; right:20px; z-index:1000;
   width:56px; height:56px; border-radius:999px; border:none; cursor:pointer;
   display:grid; place-items:center; background:#ffffff;
   box-shadow:0 10px 30px rgba(0,0,0,.15);
-  transition:transform .18s ease, box-shadow .18s ease;
+  transition:transform .18s ease, box-shadow .18s ease, opacity .2s ease;
 }
-#chat-launcher:hover{ transform:translateY(-2px); box-shadow:0 14px 36px rgba(0,0,0,.18); }
+#chat-bubble:hover{ transform:translateY(-2px); box-shadow:0 14px 36px rgba(0,0,0,.18); }
 
-/* Chat window (fixed above bubble) */
+/* Chat window */
 .chatbot-popup{
   position:fixed; right:20px; bottom:86px; z-index:1000;
   width:420px; background:#fff; border-radius:15px; overflow:hidden;
@@ -55,7 +55,7 @@ body{
 .user-message{ flex-direction:column; align-items:flex-end; }
 .user-message .message-text{ color:#fff; background:#005568; border-radius:13px 13px 3px 13px; }
 
-/* thinking */
+/* thinking indicator */
 .thinking-indicator{ display:flex; gap:4px; padding-block:15px; }
 .thinking-indicator .dot{
   height:7px; width:7px; opacity:.7; border-radius:50%; background:#005568;
@@ -72,7 +72,8 @@ body{
 /* Footer */
 .chat-footer{ background:#fff; padding:12px 16px 16px; border-top:1px solid #eee; }
 .chat-form{
-  display:flex; align-items:center; background:#fff; border-radius:32px; outline:1px solid #cccce5;
+  display:flex; align-items:center; background:#fff; border-radius:32px;
+  outline:1px solid #cccce5;
 }
 .chat-form:focus-within{ outline:2px solid #005568; }
 
@@ -99,3 +100,6 @@ body{
 .user-message .image-preview-wrap img{
   width:120px; height:120px; object-fit:cover; border-radius:12px; border:1px solid #e5e7eb;
 }
+
+/* Emoji Mart Popup position fix (so it appears above footer nicely) */
+.emoji-mart{ z-index: 2000; }
