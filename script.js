@@ -1,16 +1,24 @@
-// ===== Floating open/close =====
-const launcher = document.getElementById("chat-launcher");
+// IMPORTANT: this file is loaded with type="module" in index.html
+
+// ===== UI open/close behavior (open by default) =====
 const chatbot = document.getElementById("chatbot");
+const bubble = document.getElementById("chat-bubble");
 const minimizeBtn = document.getElementById("minimize-chat");
 
-function openChat(){ chatbot.classList.add("open"); chatbot.setAttribute("aria-hidden","false"); }
-function closeChat(){ chatbot.classList.remove("open"); chatbot.setAttribute("aria-hidden","true"); }
+function openChat(){
+  chatbot.classList.add("open");
+  chatbot.setAttribute("aria-hidden","false");
+  bubble.hidden = true;
+}
+function closeChat(){
+  chatbot.classList.remove("open");
+  chatbot.setAttribute("aria-hidden","true");
+  bubble.hidden = false;
+}
 
-launcher.addEventListener("click", () => chatbot.classList.contains("open") ? closeChat() : openChat());
+openChat(); // open on first load
+bubble.addEventListener("click", openChat);
 minimizeBtn.addEventListener("click", closeChat);
-
-// Open by default on first load
-window.addEventListener("load", openChat);
 
 // ===== Elements =====
 const chatBody = document.querySelector(".chat-body");
@@ -89,36 +97,39 @@ const addFiles = async (fileList) => {
   if (selectedImages.length) formEl.classList.add("has-attachments");
 };
 
-// Insert emoji at cursor
 function insertAtCursor(el, text){
   const start = el.selectionStart ?? el.value.length;
   const end = el.selectionEnd ?? el.value.length;
   el.value = el.value.slice(0,start) + text + el.value.slice(end);
   const pos = start + text.length;
   el.setSelectionRange(pos, pos);
-  el.dispatchEvent(new Event('input', { bubbles: true })); // update :valid for Send button
+  el.dispatchEvent(new Event('input', { bubbles: true })); // update :valid for send visibility
 }
 
-// ===== Typing animation (first greeting only) =====
-function typeMessage(text) {
+// ===== Typing animation (greeting + all bot replies) =====
+function typeInto(el, text, speed = 18){
+  return new Promise((resolve) => {
+    let i = 0;
+    const t = setInterval(() => {
+      el.textContent = text.slice(0, i++);
+      chatBody.scrollTop = chatBody.scrollHeight;
+      if (i > text.length) { clearInterval(t); resolve(); }
+    }, speed);
+  });
+}
+
+// Initial greeting
+(async () => {
   const msgDiv = document.createElement("div");
   msgDiv.classList.add("message", "bot-message");
   msgDiv.innerHTML = `<div class="message-text"></div>`;
   chatBody.appendChild(msgDiv);
-
-  const el = msgDiv.querySelector(".message-text");
-  let i = 0;
-  const timer = setInterval(() => {
-    el.textContent = text.slice(0, i++);
-    chatBody.scrollTop = chatBody.scrollHeight;
-    if (i > text.length) clearInterval(timer);
-  }, 24);
-}
-
-// Initial greeting
-window.addEventListener("load", () => {
-  typeMessage("Hey there 👋😊\nWelcome to Healthy Planet Canada Online Assistant.\nHow can I help you today?");
-});
+  await typeInto(
+    msgDiv.querySelector(".message-text"),
+    "Hey there 👋😊\nWelcome to Healthy Planet Canada Online Assistant.\nHow can I help you today?",
+    14
+  );
+})();
 
 // ===== Image + Emoji buttons =====
 attachBtn?.addEventListener("click", () => inputAttach.click());
@@ -126,19 +137,49 @@ cameraBtn?.addEventListener("click", () => inputCamera.click());
 inputAttach.addEventListener("change", async (e) => { await addFiles(e.target.files); inputAttach.value = ""; });
 inputCamera.addEventListener("change", async (e) => { await addFiles(e.target.files); inputCamera.value = ""; });
 
-// Emoji picker (Emoji Button)
+// Emoji Mart (dynamic import for GitHub Pages)
 let emojiPicker;
-if (window.EmojiButton) {
-  emojiPicker = new EmojiButton({ position: 'top-end', zIndex: 2000 });
-  emojiPicker.on('emoji', emoji => {
-    insertAtCursor(messageInput, emoji);
-    messageInput.focus();
+import('https://cdn.jsdelivr.net/npm/emoji-mart@latest/dist/browser.js').then(({ Picker }) => {
+  // You can customize the picker here (locale, skin tone, etc.)
+  emojiPicker = new Picker({
+    theme: 'light',
+    skinTonePosition: 'none',
+    searchPosition: 'none',
+    previewPosition: 'none'
   });
+
+  let pickerOpen = false;
+
   emojiBtn?.addEventListener('click', (e) => {
     e.preventDefault();
-    emojiPicker.togglePicker(emojiBtn);
+    if (!pickerOpen) {
+      // Position it above the emoji button
+      const rect = emojiBtn.getBoundingClientRect();
+      emojiPicker.style.position = 'fixed';
+      emojiPicker.style.right = `${window.innerWidth - rect.right}px`;
+      emojiPicker.style.bottom = `${window.innerHeight - rect.top + 8}px`;
+      emojiPicker.style.zIndex = '2000';
+      document.body.appendChild(emojiPicker);
+      pickerOpen = true;
+    } else {
+      emojiPicker.remove();
+      pickerOpen = false;
+    }
   });
-}
+
+  emojiPicker.addEventListener('emoji:select', (event) => {
+    insertAtCursor(messageInput, event.emoji.native);
+    messageInput.focus();
+  });
+
+  // Close picker if user clicks outside
+  document.addEventListener('click', (ev) => {
+    if (pickerOpen && !emojiPicker.contains(ev.target) && ev.target !== emojiBtn) {
+      emojiPicker.remove();
+      pickerOpen = false;
+    }
+  });
+});
 
 // ===== Gemini call =====
 const generateBotResponse = async (incomingMessageDiv) => {
@@ -170,8 +211,11 @@ const generateBotResponse = async (incomingMessageDiv) => {
 
     const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
     const apiResponseText = cleanBotText(raw);
-    messageElement.innerText = apiResponseText;
 
+    // Type the reply
+    await typeInto(messageElement, apiResponseText, 16);
+
+    // push history
     chatHistory.push({ role: "model", parts: [{ text: apiResponseText }] });
     trimHistory();
   } catch (err) {
@@ -190,7 +234,7 @@ const handleOutgoingMessage = (e) => {
   e.preventDefault();
   userData.message = messageInput.value.trim();
 
-  // open if minimized
+  // ensure open
   openChat();
 
   // allow sending if text or images present
@@ -203,7 +247,7 @@ const handleOutgoingMessage = (e) => {
     userData.message || "(sent image)";
   chatBody.appendChild(outgoingMessageDiv);
 
-  // previews
+  // image previews
   if (selectedImages.length) {
     const imgWrap = document.createElement("div");
     imgWrap.className = "image-preview-wrap";
@@ -221,7 +265,7 @@ const handleOutgoingMessage = (e) => {
     outgoingMessageDiv.appendChild(imgWrap);
   }
 
-  // add to history (images are merged in generateBotResponse)
+  // add to history (images merged later)
   chatHistory.push({ role: "user", parts: [{ text: userData.message || "" }] });
   trimHistory();
 
@@ -251,4 +295,3 @@ messageInput.addEventListener("keydown", (e) => {
     handleOutgoingMessage(e);
   }
 });
-
