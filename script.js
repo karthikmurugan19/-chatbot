@@ -1,4 +1,8 @@
-// ===== elements =====
+// ===== core elements =====
+const chatbot = document.getElementById("chatbot");
+const chatContent = document.getElementById("chat-content");
+const toggleBtn = document.getElementById("toggle-chatbot");
+
 const chatBody = document.querySelector(".chat-body");
 const messageInput = document.querySelector(".message-input");
 const sendMessageButton = document.querySelector("#send-message");
@@ -6,13 +10,19 @@ const attachBtn = document.querySelector("#btn-attach");
 const cameraBtn = document.querySelector("#btn-camera");
 const inputAttach = document.querySelector("#file-attach");
 const inputCamera = document.querySelector("#file-camera");
-const formEl = document.querySelector(".chat-form"); // 👈 used to toggle has-attachments
+const formEl = document.querySelector(".chat-form"); // toggles has-attachments
 
-// tiny UX: keep your icon text
-if (sendMessageButton) {
-  const label = sendMessageButton.textContent.trim() || "arrow_upward";
-  sendMessageButton.textContent = label;
+// ===== collapse / expand =====
+function setCollapsed(collapsed){
+  chatbot.classList.toggle("collapsed", collapsed);
+  const expanded = !collapsed;
+  toggleBtn.setAttribute("aria-expanded", String(expanded));
+  chatContent.setAttribute("aria-hidden", String(collapsed));
 }
+toggleBtn.addEventListener("click", () => setCollapsed(!chatbot.classList.contains("collapsed")));
+toggleBtn.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleBtn.click(); }
+});
 
 // ===== Gemini config =====
 const API_KEY = "AIzaSyDjWSYA7pDcUiddC3SvhJnxTXBAie1j4WE"; // ⚠️ don't expose in prod
@@ -24,7 +34,6 @@ const userData = { message: null };
 let selectedImages = []; // [{file, b64}]
 const MAX_SIZE_MB = 8;
 
-// One-time guardrails so you don't repeat "Healthy Planet" every line
 const SYSTEM_INSTRUCTION = `You are a helpful assistant for Healthy Planet Canada.
 Answer questions about Healthy Planet stores, products, supplements, returns, or related services.
 If the topic is clearly unrelated, gently say: "I'm here to help with Healthy Planet Canada. Please ask something related to it."
@@ -84,28 +93,20 @@ const addFiles = async (fileList) => {
     }
     selectedImages.push({ file, b64: await fileToBase64(file) });
   }
-  // 👇 show the Send button even if textarea is empty
   if (selectedImages.length) formEl.classList.add("has-attachments");
 };
 
 // ===== image buttons =====
 attachBtn?.addEventListener("click", () => inputAttach.click());
 cameraBtn?.addEventListener("click", () => inputCamera.click());
-
-inputAttach.addEventListener("change", async (e) => {
-  await addFiles(e.target.files);
-  inputAttach.value = "";
-});
-inputCamera.addEventListener("change", async (e) => {
-  await addFiles(e.target.files);
-  inputCamera.value = "";
-});
+inputAttach.addEventListener("change", async (e) => { await addFiles(e.target.files); inputAttach.value = ""; });
+inputCamera.addEventListener("change", async (e) => { await addFiles(e.target.files); inputCamera.value = ""; });
 
 // ===== call Gemini =====
 const generateBotResponse = async (incomingMessageDiv) => {
   const messageElement = incomingMessageDiv.querySelector(".message-text");
 
-  // attach current images to the most recent user turn
+  // attach images to the most recent user turn
   let lastUser = -1;
   for (let i = chatHistory.length - 1; i >= 0; i--) {
     if (chatHistory[i].role === "user") { lastUser = i; break; }
@@ -139,9 +140,8 @@ const generateBotResponse = async (incomingMessageDiv) => {
     console.error("❌ API Error:", err);
     messageElement.innerText = "⚠️ Something went wrong. Please try again later.";
   } finally {
-    // clear images for next round & reset send-visibility toggle
     selectedImages = [];
-    formEl.classList.remove("has-attachments"); // 👈 hide Send if no text now
+    formEl.classList.remove("has-attachments");
     incomingMessageDiv.classList.remove("thinking");
     chatBody.scrollTo({ top: chatBody.scrollHeight, behavior: "smooth" });
   }
@@ -152,47 +152,40 @@ const handleOutgoingMessage = (e) => {
   e.preventDefault();
   userData.message = messageInput.value.trim();
 
-  // allow send if we have text OR images
   if (!userData.message && selectedImages.length === 0) return;
 
-  // user bubble (text)
+  // ensure expanded when sending
+  setCollapsed(false);
+
+  // user bubble
   const messageContent = `<div class="message-text"></div>`;
   const outgoingMessageDiv = createMessageElement(messageContent, "user-message");
   outgoingMessageDiv.querySelector(".message-text").textContent =
     userData.message || "(sent image)";
   chatBody.appendChild(outgoingMessageDiv);
 
-  // user bubble (image previews)
+  // previews
   if (selectedImages.length) {
     const imgWrap = document.createElement("div");
-    Object.assign(imgWrap.style, {
-      display: "flex",
-      flexWrap: "wrap",
-      gap: "8px",
-      marginTop: "8px"
-    });
+    Object.assign(imgWrap.style, { display:"flex", flexWrap:"wrap", gap:"8px", marginTop:"8px" });
     selectedImages.forEach(({ file }) => {
       const url = URL.createObjectURL(file);
       const img = document.createElement("img");
       Object.assign(img.style, {
-        width: "120px",
-        height: "120px",
-        objectFit: "cover",
-        borderRadius: "12px",
-        border: "1px solid #e5e7eb"
+        width:"120px", height:"120px", objectFit:"cover",
+        borderRadius:"12px", border:"1px solid #e5e7eb"
       });
-      img.src = url;
-      img.alt = file.name;
+      img.src = url; img.alt = file.name;
       imgWrap.appendChild(img);
     });
     outgoingMessageDiv.appendChild(imgWrap);
   }
 
-  // add user turn to history (images merged in generateBotResponse)
+  // history
   chatHistory.push({ role: "user", parts: [{ text: userData.message || "" }] });
   trimHistory();
 
-  // reset input + scroll
+  // reset + scroll
   messageInput.value = "";
   chatBody.scrollTo({ top: chatBody.scrollHeight, behavior: "smooth" });
 
@@ -207,15 +200,10 @@ const handleOutgoingMessage = (e) => {
       </div>
     </div>
   `;
-  const incomingMessageDiv = createMessageElement(
-    botThinkingContent,
-    "bot-message",
-    "thinking"
-  );
+  const incomingMessageDiv = createMessageElement(botThinkingContent, "bot-message", "thinking");
   chatBody.appendChild(incomingMessageDiv);
   chatBody.scrollTo({ top: chatBody.scrollHeight, behavior: "smooth" });
 
-  // call API
   generateBotResponse(incomingMessageDiv);
 };
 
