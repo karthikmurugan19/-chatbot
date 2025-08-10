@@ -1,8 +1,22 @@
-// ===== core elements =====
+// ===== floating open/close =====
+const launcher = document.getElementById("chat-launcher");
 const chatbot = document.getElementById("chatbot");
-const chatContent = document.getElementById("chat-content");
-const toggleBtn = document.getElementById("toggle-chatbot");
+const minimizeBtn = document.getElementById("minimize-chat");
 
+function openChat(){
+  chatbot.classList.add("open");
+  chatbot.setAttribute("aria-hidden","false");
+}
+function closeChat(){
+  chatbot.classList.remove("open");
+  chatbot.setAttribute("aria-hidden","true");
+}
+launcher.addEventListener("click", () => {
+  if (chatbot.classList.contains("open")) closeChat(); else openChat();
+});
+minimizeBtn.addEventListener("click", closeChat);
+
+// ===== elements =====
 const chatBody = document.querySelector(".chat-body");
 const messageInput = document.querySelector(".message-input");
 const sendMessageButton = document.querySelector("#send-message");
@@ -10,19 +24,7 @@ const attachBtn = document.querySelector("#btn-attach");
 const cameraBtn = document.querySelector("#btn-camera");
 const inputAttach = document.querySelector("#file-attach");
 const inputCamera = document.querySelector("#file-camera");
-const formEl = document.querySelector(".chat-form"); // toggles has-attachments
-
-// ===== collapse / expand =====
-function setCollapsed(collapsed){
-  chatbot.classList.toggle("collapsed", collapsed);
-  const expanded = !collapsed;
-  toggleBtn.setAttribute("aria-expanded", String(expanded));
-  chatContent.setAttribute("aria-hidden", String(collapsed));
-}
-toggleBtn.addEventListener("click", () => setCollapsed(!chatbot.classList.contains("collapsed")));
-toggleBtn.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleBtn.click(); }
-});
+const formEl = document.querySelector(".chat-form");
 
 // ===== Gemini config =====
 const API_KEY = "AIzaSyDjWSYA7pDcUiddC3SvhJnxTXBAie1j4WE"; // ⚠️ don't expose in prod
@@ -152,10 +154,10 @@ const handleOutgoingMessage = (e) => {
   e.preventDefault();
   userData.message = messageInput.value.trim();
 
-  if (!userData.message && selectedImages.length === 0) return;
+  // open if minimized
+  openChat();
 
-  // ensure expanded when sending
-  setCollapsed(false);
+  if (!userData.message && selectedImages.length === 0) return;
 
   // user bubble
   const messageContent = `<div class="message-text"></div>`;
