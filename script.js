@@ -1,42 +1,52 @@
-// ===== Shell toggling (bubble <-> window) =====
-const shell = document.getElementById("chat-shell");
-const bubble = shell.querySelector(".bubble-logo");
+// This file is loaded with type="module" in index.html
+
+/***********************
+ * Open / Close Logic  *
+ ***********************/
+const chatbot = document.getElementById("chatbot");
+const bubble  = document.getElementById("chat-bubble");
 const minimizeBtn = document.getElementById("minimize-chat");
 
 function openChat(){
-  shell.classList.add("open");
-  shell.setAttribute("aria-hidden","false");
+  chatbot.classList.add("open");
+  chatbot.setAttribute("aria-hidden","false");
+  bubble.hidden = true;
 }
 function closeChat(){
-  shell.classList.remove("open");
-  shell.setAttribute("aria-hidden","true");
+  chatbot.classList.remove("open");
+  chatbot.setAttribute("aria-hidden","true");
+  bubble.hidden = false; // shows circular icon only
 }
 
+// Start open; minimize goes to circle bubble
+openChat();
 bubble.addEventListener("click", openChat);
 minimizeBtn.addEventListener("click", closeChat);
 
-// open by default
-openChat();
-
-// ===== Elements =====
+/***********************
+ * DOM References      *
+ ***********************/
 const chatBody = document.querySelector(".chat-body");
 const messageInput = document.querySelector(".message-input");
 const sendMessageButton = document.querySelector("#send-message");
-const attachBtn = document.querySelector("#btn-attach");
-const cameraBtn = document.querySelector("#btn-camera");
-const emojiBtn = document.querySelector("#btn-emoji");
+const attachBtn  = document.querySelector("#btn-attach");
+const cameraBtn  = document.querySelector("#btn-camera");
+const emojiBtn   = document.querySelector("#btn-emoji");
 const inputAttach = document.querySelector("#file-attach");
 const inputCamera = document.querySelector("#file-camera");
 const formEl = document.querySelector(".chat-form");
 
-// ===== Gemini config =====
-const API_KEY = "AIzaSyDjWSYA7pDcUiddC3SvhJnxTXBAie1j4WE"; // ⚠️ Replace + proxy in production
+/***********************
+ * Gemini Config       *
+ ***********************/
+const API_KEY = "YOUR_GEMINI_API_KEY_HERE"; // ⚠️ Replace & proxy in prod
 const API_URL =
   `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
 
-// ===== State =====
-const userData = { message: null };
-let selectedImages = []; // [{file, b64}]
+/***********************
+ * Conversation State  *
+ ***********************/
+let selectedImages = []; // [{ file, b64 }]
 const MAX_SIZE_MB = 8;
 
 const SYSTEM_INSTRUCTION = `You are a helpful assistant for Healthy Planet Canada.
@@ -51,7 +61,9 @@ const trimHistory = () => {
   if (chatHistory.length > keep) chatHistory = [chatHistory[0], ...chatHistory.slice(-keep + 1)];
 };
 
-// ===== Helpers =====
+/***********************
+ * Helpers             *
+ ***********************/
 const createMessageElement = (content, ...classes) => {
   const div = document.createElement("div");
   div.classList.add("message", ...classes);
@@ -97,14 +109,14 @@ const addFiles = async (fileList) => {
 
 function insertAtCursor(el, text){
   const start = el.selectionStart ?? el.value.length;
-  const end = el.selectionEnd ?? el.value.length;
+  const end   = el.selectionEnd ?? el.value.length;
   el.value = el.value.slice(0,start) + text + el.value.slice(end);
   const pos = start + text.length;
   el.setSelectionRange(pos, pos);
-  el.dispatchEvent(new Event('input', { bubbles: true }));
+  el.dispatchEvent(new Event('input', { bubbles: true })); // update :valid -> send visibility
 }
 
-// ===== Typing animation for all bot replies =====
+// typewriter for bot replies (and greeting)
 function typeInto(el, text, speed = 16){
   return new Promise((resolve) => {
     let i = 0;
@@ -116,7 +128,9 @@ function typeInto(el, text, speed = 16){
   });
 }
 
-// Initial greeting
+/***********************
+ * Greeting            *
+ ***********************/
 (async () => {
   const msgDiv = document.createElement("div");
   msgDiv.classList.add("message", "bot-message");
@@ -129,13 +143,9 @@ function typeInto(el, text, speed = 16){
   );
 })();
 
-// ===== Image buttons =====
-attachBtn?.addEventListener("click", () => inputAttach.click());
-cameraBtn?.addEventListener("click", () => inputCamera.click());
-inputAttach.addEventListener("change", async (e) => { await addFiles(e.target.files); inputAttach.value = ""; });
-inputCamera.addEventListener("change", async (e) => { await addFiles(e.target.files); inputCamera.value = ""; });
-
-// ===== Emoji Mart (dynamic import for GitHub Pages) =====
+/***********************
+ * Emoji Mart (CDN)    *
+ ***********************/
 let emojiPicker, pickerOpen = false;
 import('https://cdn.jsdelivr.net/npm/emoji-mart@latest/dist/browser.js').then(({ Picker }) => {
   emojiPicker = new Picker({
@@ -144,7 +154,6 @@ import('https://cdn.jsdelivr.net/npm/emoji-mart@latest/dist/browser.js').then(({
     searchPosition: 'none',
     previewPosition: 'none'
   });
-
   emojiBtn?.addEventListener('click', (e) => {
     e.preventDefault();
     if (!pickerOpen) {
@@ -156,25 +165,31 @@ import('https://cdn.jsdelivr.net/npm/emoji-mart@latest/dist/browser.js').then(({
       document.body.appendChild(emojiPicker);
       pickerOpen = true;
     } else {
-      emojiPicker.remove();
-      pickerOpen = false;
+      emojiPicker.remove(); pickerOpen = false;
     }
   });
-
-  emojiPicker.addEventListener('emoji:select', (event) => {
-    insertAtCursor(messageInput, event.emoji.native);
+  emojiPicker.addEventListener('emoji:select', (ev) => {
+    insertAtCursor(messageInput, ev.emoji.native);
     messageInput.focus();
   });
-
   document.addEventListener('click', (ev) => {
     if (pickerOpen && !emojiPicker.contains(ev.target) && ev.target !== emojiBtn) {
-      emojiPicker.remove();
-      pickerOpen = false;
+      emojiPicker.remove(); pickerOpen = false;
     }
   });
 });
 
-// ===== Gemini call =====
+/***********************
+ * Image buttons       *
+ ***********************/
+attachBtn?.addEventListener("click", () => inputAttach.click());
+cameraBtn?.addEventListener("click", () => inputCamera.click());
+inputAttach.addEventListener("change", async (e) => { await addFiles(e.target.files); inputAttach.value = ""; });
+inputCamera.addEventListener("change", async (e) => { await addFiles(e.target.files); inputCamera.value = ""; });
+
+/***********************
+ * Gemini call         *
+ ***********************/
 const generateBotResponse = async (incomingMessageDiv) => {
   const messageElement = incomingMessageDiv.querySelector(".message-text");
 
@@ -205,8 +220,10 @@ const generateBotResponse = async (incomingMessageDiv) => {
     const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
     const apiResponseText = cleanBotText(raw);
 
+    // type the reply
     await typeInto(messageElement, apiResponseText, 16);
 
+    // keep memory
     chatHistory.push({ role: "model", parts: [{ text: apiResponseText }] });
     trimHistory();
   } catch (err) {
@@ -220,23 +237,26 @@ const generateBotResponse = async (incomingMessageDiv) => {
   }
 };
 
-// ===== Send flow =====
+/***********************
+ * Send flow           *
+ ***********************/
 const handleOutgoingMessage = (e) => {
   e.preventDefault();
-  userData.message = messageInput.value.trim();
 
-  openChat(); // ensure open if minimized
+  const text = messageInput.value.trim();
+  // allow sending if text or images present
+  if (!text && selectedImages.length === 0) return;
 
-  if (!userData.message && selectedImages.length === 0) return;
+  // ensure chat is open (in case user clicked bubble and typed quickly)
+  openChat();
 
   // user bubble
   const messageContent = `<div class="message-text"></div>`;
   const outgoingMessageDiv = createMessageElement(messageContent, "user-message");
-  outgoingMessageDiv.querySelector(".message-text").textContent =
-    userData.message || "(sent image)";
+  outgoingMessageDiv.querySelector(".message-text").textContent = text || "(sent image)";
   chatBody.appendChild(outgoingMessageDiv);
 
-  // previews
+  // image previews
   if (selectedImages.length) {
     const imgWrap = document.createElement("div");
     imgWrap.className = "image-preview-wrap";
@@ -254,32 +274,30 @@ const handleOutgoingMessage = (e) => {
     outgoingMessageDiv.appendChild(imgWrap);
   }
 
-  chatHistory.push({ role: "user", parts: [{ text: userData.message || "" }] });
+  // push user turn (images merged later)
+  chatHistory.push({ role: "user", parts: [{ text: text || "" }] });
   trimHistory();
 
+  // reset input + scroll
   messageInput.value = "";
   chatBody.scrollTop = chatBody.scrollHeight;
 
-  // compact thinking bubble
-  const botThinkingContent = `
+  // thinking bubble (same width as normal bot bubble; compact dots)
+  const botThinking = `
     <div class="message-text">
       <div class="thinking-indicator">
         <div class="dot"></div><div class="dot"></div><div class="dot"></div>
       </div>
-    </div>
-  `;
-  const incomingMessageDiv = createMessageElement(botThinkingContent, "bot-message", "thinking");
+    </div>`;
+  const incomingMessageDiv = createMessageElement(botThinking, "bot-message", "thinking");
   chatBody.appendChild(incomingMessageDiv);
   chatBody.scrollTop = chatBody.scrollHeight;
 
   generateBotResponse(incomingMessageDiv);
 };
 
-// Submit + Enter to send
+// submit + Enter to send
 document.querySelector(".chat-form").addEventListener("submit", handleOutgoingMessage);
 messageInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !e.shiftKey) {
-    handleOutgoingMessage(e);
-  }
+  if (e.key === "Enter" && !e.shiftKey) handleOutgoingMessage(e);
 });
-
