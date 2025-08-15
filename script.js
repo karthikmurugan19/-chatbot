@@ -310,3 +310,10 @@ messageInput.addEventListener("keydown", (e) => {
     handleOutgoingMessage(e);
   }
 });
+
+const picker = new EmojiMart.Picker({
+  theme: "light",
+  skinTonePosition: "none",
+  previewPostion: "none"
+});
+document.querySelector(".chat-form").appendChild(picker);
