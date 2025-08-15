@@ -1,4 +1,14 @@
+
 // IMPORTANT: this file is loaded with type="module" in index.html
+
+// --- mobile viewport height fix (iOS/Android address bar) ---
+function setAppHeight() {
+  const vh = window.innerHeight;
+  document.documentElement.style.setProperty('--app-height', `${vh}px`);
+}
+window.addEventListener('resize', setAppHeight);
+window.addEventListener('orientationchange', setAppHeight);
+setAppHeight();
 
 // ===== UI open/close behavior (open by default) =====
 const chatbot = document.getElementById("chatbot");
