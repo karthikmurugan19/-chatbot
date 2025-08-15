@@ -303,6 +303,13 @@ const handleOutgoingMessage = (e) => {
   generateBotResponse(incomingMessageDiv);
 };
 
+const picker = new EmojiMart.Picker({
+  theme: "light",
+  skinTonePosition: "none",
+  previewPostion: "none"
+});
+document.querySelector(".chat-form").appendChild(picker);
+
 // Submit + Enter to send
 document.querySelector(".chat-form").addEventListener("submit", handleOutgoingMessage);
 messageInput.addEventListener("keydown", (e) => {
@@ -310,10 +317,3 @@ messageInput.addEventListener("keydown", (e) => {
     handleOutgoingMessage(e);
   }
 });
-
-const picker = new EmojiMart.Picker({
-  theme: "light",
-  skinTonePosition: "none",
-  previewPostion: "none"
-});
-document.querySelector(".chat-form").appendChild(picker);
