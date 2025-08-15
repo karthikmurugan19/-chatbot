@@ -169,3 +169,13 @@ body {
   .chat-contorls { height: 46px; gap: 6px; padding-right: 4px; }
   .chat-contorls button { width: 40px; height: 40px; font-size: 1.35rem; }
 }
+
+em-emoji-picker{
+  postion: absolute;
+  left: 50%;
+  top: -337px;
+  width: 100px;
+  max-width: 350px;
+  max-height: 330px;
+  transform: translateX(-50%);
+}
