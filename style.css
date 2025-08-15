@@ -25,7 +25,7 @@ body{
   box-shadow:0 24px 64px rgba(0,0,0,.2);
   transform:translateY(12px) scale(.98); opacity:0; pointer-events:none;
   transition:transform .22s ease, opacity .22s ease;
-  display:flex; flex-direction:column;
+  display:flex; flex-direction:column; /* <-- allows flexing message area */
 }
 .chatbot-popup.open{ transform:translateY(0) scale(1); opacity:1; pointer-events:auto; }
 
@@ -43,14 +43,18 @@ body{
 }
 #minimize-chat:hover{ background:#002a33; }
 
-/* Body */
+/* Body (flexible height) */
 .chat-body{
-  padding:20px 18px; display:flex; gap:16px; height:420px;
-  overflow-y:auto; flex-direction:column; scroll-behavior:smooth;
+  padding:20px 18px;
+  display:flex; flex-direction:column; gap:16px;
+  height:420px;               /* desktop baseline */
+  overflow-y:auto;            /* scroll messages */
+  scroll-behavior:smooth;
 }
 .message{ display:flex; gap:11px; align-items:flex-end; }
-.message .message-text{ padding:12px 16px; max-width:75%; font-size:.95rem; white-space:pre-wrap; }
-
+.message .message-text{
+  padding:12px 16px; max-width:75%; font-size:.95rem; white-space:pre-wrap;
+}
 .bot-message .message-text{ background:#0055683a; border-radius:13px 13px 13px 3px; }
 .user-message{ flex-direction:column; align-items:flex-end; }
 .user-message .message-text{ color:#fff; background:#005568; border-radius:13px 13px 3px 13px; }
@@ -76,13 +80,12 @@ body{
   outline:1px solid #cccce5;
 }
 .chat-form:focus-within{ outline:2px solid #005568; }
-
 .message-input{
   border:none; outline:none; height:44px; width:100%; resize:none;
   font-size:.95rem; padding:12px 0 11px 16px; border-radius:inherit;
 }
 .chat-contorls{
-  display:flex; height:44px; gap:3px; align-items:center; align-self:flex-end; padding-right:6px;
+  display:flex; height:44px; gap:6px; align-items:center; align-self:flex-end; padding-right:6px;
 }
 .chat-contorls button{
   height:34px; width:34px; border:none; font-size:1.25rem; cursor:pointer;
@@ -96,10 +99,56 @@ body{
 .message-input:valid ~ .chat-contorls #send-message{ display:block; }
 .chat-form.has-attachments .chat-contorls #send-message{ display:block; }
 
-/* Optional preview thumbnails inside user bubble */
+/* Preview thumbs */
 .user-message .image-preview-wrap img{
   width:120px; height:120px; object-fit:cover; border-radius:12px; border:1px solid #e5e7eb;
 }
 
-/* Emoji Mart Popup position fix (so it appears above footer nicely) */
-.emoji-mart{ z-index: 2000; }
+/* =========================
+   MOBILE RESPONSIVE
+   ========================= */
+@media (max-width: 600px){
+  /* bubble: bigger target */
+  #chat-bubble{
+    width:64px; height:64px; bottom:16px; right:16px;
+  }
+
+  /* full-screen sheet */
+  .chatbot-popup{
+    left:0; right:0; bottom:0; top:auto;
+    width:100vw;
+    height:var(--app-height, 100svh); /* JS sets --app-height for iOS bars */
+    border-radius:12px 12px 0 0;
+    transform:none;                    /* no slide-in scale on mobile */
+    opacity:1;                         /* keep visible when .open toggles */
+    pointer-events:auto;
+  }
+  .chatbot-popup:not(.open){ display:none; } /* fully hide when minimized */
+
+  .chat-header{ padding:12px 14px; }
+  .logo-text{ font-size:1rem; }
+  .chatbot-logo{ height:32px; width:32px; }
+
+  /* let messages area fill remaining space */
+  .chat-body{
+    height:auto;
+    flex:1;            /* grow to fill */
+    min-height:0;      /* allow overflow */
+    padding:14px 12px;
+    gap:12px;
+  }
+
+  .message .message-text{ max-width:85%; font-size:1rem; } /* more width for narrow screens */
+
+  .chat-footer{ padding:10px 12px 12px; }
+  .chat-form{ border-radius:28px; }
+  .message-input{
+    height:46px; font-size:1rem; padding-left:14px;
+  }
+  .chat-contorls{
+    height:46px; gap:6px; padding-right:4px;
+  }
+  .chat-contorls button{
+    width:40px; height:40px; font-size:1.35rem; /* bigger tap targets */
+  }
+}
