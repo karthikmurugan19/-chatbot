@@ -59,7 +59,81 @@ body {
   max-width: 100%; /* Ensure messages don't exceed container */
 }
 
-.message .message-input {
+.message .message-text {
+  padding: 12px 16px; 
+  max-width: 75%; 
+  font-size: .95rem; 
+  white-space: pre-wrap;
+  /* FIXED: Add proper word wrapping */
+  word-wrap: break-word;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  /* Ensure the box doesn't exceed its max-width */
+  box-sizing: border-box;
+}
+
+.bot-message .message-text { 
+  background: #0055683a; 
+  border-radius: 13px 13px 13px 3px; 
+}
+
+.user-message { 
+  flex-direction: column; 
+  align-items: flex-end; 
+}
+
+.user-message .message-text { 
+  color: #fff; 
+  background: #005568; 
+  border-radius: 13px 13px 3px 13px; 
+}
+
+/* === THINKING STATE (no squish / no jump) === */
+.bot-message.thinking .message-text {
+  padding: 12px 16px;        /* match normal bot bubble */
+  min-height: auto;          /* no forced tall height */
+  display: flex;             /* center dots vertically */
+  align-items: center;
+  box-sizing: border-box;
+}
+
+/* Thinking indicator (tight, no extra vertical space) */
+.thinking-indicator {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  height: auto;
+  padding: 0;                /* remove extra top/bottom padding */
+  line-height: 0;            /* avoid extra line height around dots */
+}
+
+.thinking-indicator .dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: #005568;
+  opacity: .8;
+  animation: dotPulse 1.3s ease-in-out infinite;
+}
+
+/* Dot animation */
+@keyframes dotPulse {
+  0%, 80%, 100% { transform: scale(0.8); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .thinking-indicator .dot { animation: none; }
+}
+
+/* Footer */
+.chat-footer { background: #fff; padding: 12px 16px 16px; border-top: 1px solid #eee; }
+.chat-form {
+  display: flex; align-items: center; background: #fff; border-radius: 32px;
+  outline: 1px solid #cccce5;
+}
+.chat-form:focus-within { outline: 2px solid #005568; }
+.message-input {
   border: none; outline: none; height: 44px; width: 100%; resize: none;
   font-size: .95rem; padding: 12px 0 11px 16px; border-radius: inherit;
 }
@@ -142,130 +216,9 @@ body {
   /* Prevent links from creating horizontal scroll */
   max-width: 100%;
   display: inline-block;
-  /* Add better visual styling for links */
-  font-weight: 500;
-  transition: all 0.2s ease;
 }
 
 .message .message-text a:hover {
   text-decoration: none;
   opacity: .9;
-  background-color: rgba(0, 85, 104, 0.1);
-  border-radius: 3px;
-  padding: 1px 3px;
 }
-
-/* Ensure link focus states are accessible */
-.message .message-text a:focus {
-  outline: 2px solid #005568;
-  outline-offset: 2px;
-}
-
-/* Image thumbnail styles for attachment previews */
-.image-thumbnails {
-  display: flex;
-  gap: 8px;
-  padding: 8px;
-  flex-wrap: wrap;
-  background: #f8f9fa;
-  border-radius: 8px;
-  margin-bottom: 8px;
-}
-
-.image-thumbnails img {
-  width: 60px;
-  height: 60px;
-  object-fit: cover;
-  border-radius: 8px;
-  border: 2px solid #e5e7eb;
-  transition: transform 0.2s ease;
-}
-
-.image-thumbnails img:hover {
-  transform: scale(1.05);
-}
-
-/* File input styles (hidden) */
-#file-attach,
-#file-camera {
-  display: none;
-}text {
-  padding: 12px 16px; 
-  max-width: 75%; 
-  font-size: .95rem; 
-  white-space: pre-wrap;
-  /* FIXED: Add proper word wrapping */
-  word-wrap: break-word;
-  word-break: break-word;
-  overflow-wrap: break-word;
-  /* Ensure the box doesn't exceed its max-width */
-  box-sizing: border-box;
-}
-
-.bot-message .message-text { 
-  background: #0055683a; 
-  border-radius: 13px 13px 13px 3px; 
-}
-
-.user-message { 
-  flex-direction: column; 
-  align-items: flex-end; 
-}
-
-.user-message .message-text { 
-  color: #fff; 
-  background: #005568; 
-  border-radius: 13px 13px 3px 13px; 
-}
-
-/* === THINKING STATE (no squish / no jump) === */
-.bot-message.thinking .message-text {
-  padding: 12px 16px;        /* match normal bot bubble */
-  min-height: auto;          /* no forced tall height */
-  display: flex;             /* center dots vertically */
-  align-items: center;
-  box-sizing: border-box;
-}
-
-/* Thinking indicator (tight, no extra vertical space) */
-.thinking-indicator {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-  height: auto;
-  padding: 0;                /* remove extra top/bottom padding */
-  line-height: 0;            /* avoid extra line height around dots */
-}
-
-.thinking-indicator .dot {
-  width: 7px; height: 7px;
-  border-radius: 50%;
-  background: #005568;
-  opacity: .8;
-  animation: dotPulse 1.3s ease-in-out infinite;
-}
-
-/* Stagger the animation delays for each dot */
-.thinking-indicator .dot:nth-child(1) { animation-delay: -0.32s; }
-.thinking-indicator .dot:nth-child(2) { animation-delay: -0.16s; }
-.thinking-indicator .dot:nth-child(3) { animation-delay: 0s; }
-
-/* Dot animation */
-@keyframes dotPulse {
-  0%, 80%, 100% { transform: scale(0.8); opacity: 0.4; }
-  40% { transform: scale(1); opacity: 1; }
-}
-
-/* Respect reduced motion */
-@media (prefers-reduced-motion: reduce) {
-  .thinking-indicator .dot { animation: none; }
-}
-
-/* Footer */
-.chat-footer { background: #fff; padding: 12px 16px 16px; border-top: 1px solid #eee; }
-.chat-form {
-  display: flex; align-items: center; background: #fff; border-radius: 32px;
-  outline: 1px solid #cccce5;
-}
-.chat-form:focus-within { outline: 2px solid #005568; }
-.message-
