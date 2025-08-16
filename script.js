@@ -17,15 +17,15 @@ const minimizeBtn = document.getElementById("minimize-chat");
 function openChat(){
   chatbot.classList.add("open");
   chatbot.setAttribute("aria-hidden","false");
-  bubble.hidden = true;
+  bubble.hidden = true; // Hide bubble when chat is open
 }
 function closeChat(){
   chatbot.classList.remove("open");
   chatbot.setAttribute("aria-hidden","true");
-  bubble.hidden = false;
+  bubble.hidden = false; // Show bubble when chat is closed
 }
 
-openChat(); // open on first load
+openChat(); // open on first load - bubble will be hidden
 bubble.addEventListener("click", openChat);
 minimizeBtn.addEventListener("click", closeChat);
 
@@ -122,7 +122,6 @@ const cleanBotText = (raw = "") =>
     .replace(/^\s*\d+\.\s+/gm, "")
     .replace(/[ \t]{2,}/g, " ")
     .replace(/\n{3,}/g, "\n\n")
-    .replace(/\n/g, "<br>")
     .trim();
 
 // Convert markdown links to HTML
@@ -284,6 +283,9 @@ function typeInto(el, text, speed = 18){
     "Hey there 👋😊\nI can help you with Healthy Planet Canada stores, products, supplements, returns, and more.\nWhat are you looking for today?",
     14
   );
+  
+  // Ensure bubble is hidden since chat is open by default
+  bubble.hidden = true;
 })();
 
 // ===== Image + Emoji buttons =====
@@ -437,9 +439,11 @@ const generateBotResponse = async (incomingMessageDiv) => {
     apiResponseText = enhanceResponse(apiResponseText, userText);
 
     // Type as plain text first, then replace with HTML
-    const plainText = apiResponseText.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ');
+    const plainText = apiResponseText.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
     await typeInto(messageElement, plainText, 16);
-    messageElement.innerHTML = apiResponseText;
+    
+    // Now set the HTML content with proper formatting
+    messageElement.innerHTML = apiResponseText.replace(/\n/g, '<br>');
 
     // Add to history
     chatHistory.push({ role: "model", parts: [{ text: raw }] }); // Store original response
