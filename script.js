@@ -1,4 +1,3 @@
-
 // IMPORTANT: this file is loaded with type="module" in index.html
 
 // --- mobile viewport height fix (iOS/Android address bar) ---
@@ -43,8 +42,8 @@ const formEl = document.querySelector(".chat-form");
 
 // ===== Gemini config =====
 const API_KEY = "AIzaSyDjWSYA7pDcUiddC3SvhJnxTXBAie1j4WE"; // ⚠️ Replace + proxy in production
-const API_URL =
-  `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
+// Updated to use the stable gemini-2.0-flash model
+const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
 
 // ===== State =====
 const userData = { message: null };
@@ -61,11 +60,18 @@ Critical policies:
 - Do not invent or guess answers. If uncertain, say so briefly and ask a helpful follow-up question.
 - Do NOT ask users to wait or say you'll get back later. Answer immediately with what you know and follow up with clarifying questions if needed.`;
 
-let chatHistory = [{ role: "user", parts: [{ text: SYSTEM_INSTRUCTION }] }];
+// Fixed chat history initialization - don't include system instruction in ongoing conversation
+let chatHistory = [];
+const systemMessage = { role: "user", parts: [{ text: SYSTEM_INSTRUCTION }] };
+const systemResponse = { role: "model", parts: [{ text: "I understand. I'm here to help with Healthy Planet Canada questions." }] };
+
 const MAX_TURNS = 12;
 const trimHistory = () => {
-  const keep = 1 + Math.min(chatHistory.length - 1, MAX_TURNS * 2);
-  if (chatHistory.length > keep) chatHistory = [chatHistory[0], ...chatHistory.slice(-keep + 1)];
+  // Keep system messages + last N conversation turns
+  const keepTurns = MAX_TURNS * 2; // user + model pairs
+  if (chatHistory.length > keepTurns) {
+    chatHistory = chatHistory.slice(-keepTurns);
+  }
 };
 
 // ===== Helpers =====
@@ -106,7 +112,10 @@ const fileToBase64 = (file) => new Promise((resolve, reject) => {
 const addFiles = async (fileList) => {
   const files = Array.from(fileList || []).filter((f) => f.type.startsWith("image/"));
   for (const file of files) {
-    if (file.size > MAX_SIZE_MB * 1024 * 1024) { alert(`${file.name} is larger than ${MAX_SIZE_MB} MB`); continue; }
+    if (file.size > MAX_SIZE_MB * 1024 * 1024) { 
+      alert(`${file.name} is larger than ${MAX_SIZE_MB} MB`); 
+      continue; 
+    }
     selectedImages.push({ file, b64: await fileToBase64(file) });
   }
   if (selectedImages.length) formEl.classList.add("has-attachments");
@@ -149,93 +158,157 @@ function typeInto(el, text, speed = 18){
 // ===== Image + Emoji buttons =====
 attachBtn?.addEventListener("click", () => inputAttach.click());
 cameraBtn?.addEventListener("click", () => inputCamera.click());
-inputAttach.addEventListener("change", async (e) => { await addFiles(e.target.files); inputAttach.value = ""; });
-inputCamera.addEventListener("change", async (e) => { await addFiles(e.target.files); inputCamera.value = ""; });
-
-// Emoji Mart (dynamic import for GitHub Pages)
-let emojiPicker;
-import('https://cdn.jsdelivr.net/npm/emoji-mart@latest/dist/browser.js').then(({ Picker }) => {
-  // You can customize the picker here (locale, skin tone, etc.)
-  emojiPicker = new Picker({
-    theme: 'light',
-    skinTonePosition: 'none',
-    searchPosition: 'none',
-    previewPosition: 'none'
-  });
-
-  let pickerOpen = false;
-
-  emojiBtn?.addEventListener('click', (e) => {
-    e.preventDefault();
-    if (!pickerOpen) {
-      // Position it above the emoji button
-      const rect = emojiBtn.getBoundingClientRect();
-      emojiPicker.style.position = 'fixed';
-      emojiPicker.style.right = `${window.innerWidth - rect.right}px`;
-      emojiPicker.style.bottom = `${window.innerHeight - rect.top + 8}px`;
-      emojiPicker.style.zIndex = '2000';
-      document.body.appendChild(emojiPicker);
-      pickerOpen = true;
-    } else {
-      emojiPicker.remove();
-      pickerOpen = false;
-    }
-  });
-
-  emojiPicker.addEventListener('emoji:select', (event) => {
-    insertAtCursor(messageInput, event.emoji.native);
-    messageInput.focus();
-  });
-
-  // Close picker if user clicks outside
-  document.addEventListener('click', (ev) => {
-    if (pickerOpen && !emojiPicker.contains(ev.target) && ev.target !== emojiBtn) {
-      emojiPicker.remove();
-      pickerOpen = false;
-    }
-  });
+inputAttach.addEventListener("change", async (e) => { 
+  await addFiles(e.target.files); 
+  inputAttach.value = ""; 
 });
+inputCamera.addEventListener("change", async (e) => { 
+  await addFiles(e.target.files); 
+  inputCamera.value = ""; 
+});
+
+// Emoji Mart (dynamic import for GitHub Pages) - with error handling
+let emojiPicker;
+if (emojiBtn) {
+  import('https://cdn.jsdelivr.net/npm/emoji-mart@latest/dist/browser.js')
+    .then(({ Picker }) => {
+      emojiPicker = new Picker({
+        theme: 'light',
+        skinTonePosition: 'none',
+        searchPosition: 'none',
+        previewPosition: 'none'
+      });
+
+      let pickerOpen = false;
+
+      emojiBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (!pickerOpen) {
+          // Position it above the emoji button
+          const rect = emojiBtn.getBoundingClientRect();
+          emojiPicker.style.position = 'fixed';
+          emojiPicker.style.right = `${window.innerWidth - rect.right}px`;
+          emojiPicker.style.bottom = `${window.innerHeight - rect.top + 8}px`;
+          emojiPicker.style.zIndex = '2000';
+          document.body.appendChild(emojiPicker);
+          pickerOpen = true;
+        } else {
+          emojiPicker.remove();
+          pickerOpen = false;
+        }
+      });
+
+      emojiPicker.addEventListener('emoji:select', (event) => {
+        insertAtCursor(messageInput, event.emoji.native);
+        messageInput.focus();
+      });
+
+      // Close picker if user clicks outside
+      document.addEventListener('click', (ev) => {
+        if (pickerOpen && !emojiPicker.contains(ev.target) && ev.target !== emojiBtn) {
+          emojiPicker.remove();
+          pickerOpen = false;
+        }
+      });
+    })
+    .catch(err => {
+      console.warn("Emoji picker failed to load:", err);
+      // Hide emoji button if it fails to load
+      if (emojiBtn) emojiBtn.style.display = 'none';
+    });
+}
 
 // ===== Gemini call =====
 const generateBotResponse = async (incomingMessageDiv) => {
   const messageElement = incomingMessageDiv.querySelector(".message-text");
 
-  // Attach images to most recent user turn
-  let lastUser = -1;
-  for (let i = chatHistory.length - 1; i >= 0; i--) {
-    if (chatHistory[i].role === "user") { lastUser = i; break; }
-  }
-  if (lastUser !== -1 && selectedImages.length) {
-    const imageParts = selectedImages.map(({ file, b64 }) => ({
-      inline_data: { mime_type: file.type || "image/*", data: b64 }
-    }));
-    const parts = chatHistory[lastUser].parts || [];
-    chatHistory[lastUser] = { role: "user", parts: [...imageParts, ...parts] };
-  }
-
-  const requestOptions = {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ contents: chatHistory })
-  };
-
   try {
+    // Build the request with proper structure
+    const requestContents = [];
+    
+    // Add system instruction at the beginning if this is the first call
+    if (chatHistory.length === 0) {
+      requestContents.push(systemMessage);
+      requestContents.push(systemResponse);
+    }
+    
+    // Add conversation history
+    requestContents.push(...chatHistory);
+
+    const requestOptions = {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ 
+        contents: requestContents,
+        generationConfig: {
+          temperature: 0.7,
+          topK: 40,
+          topP: 0.95,
+          maxOutputTokens: 1024,
+        },
+        safetySettings: [
+          {
+            category: "HARM_CATEGORY_HARASSMENT",
+            threshold: "BLOCK_MEDIUM_AND_ABOVE"
+          },
+          {
+            category: "HARM_CATEGORY_HATE_SPEECH",
+            threshold: "BLOCK_MEDIUM_AND_ABOVE"
+          },
+          {
+            category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+            threshold: "BLOCK_MEDIUM_AND_ABOVE"
+          },
+          {
+            category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+            threshold: "BLOCK_MEDIUM_AND_ABOVE"
+          }
+        ]
+      })
+    };
+
     const response = await fetch(API_URL, requestOptions);
     const data = await response.json();
-    if (!response.ok) throw new Error(data?.error?.message || "Request failed");
+    
+    if (!response.ok) {
+      console.error("API Error Response:", data);
+      let errorMessage = "⚠️ Something went wrong. Please try again later.";
+      
+      if (data?.error?.message) {
+        const errorMsg = data.error.message.toLowerCase();
+        if (errorMsg.includes('api key') || errorMsg.includes('authentication')) {
+          errorMessage = "⚠️ API authentication issue. Please check configuration.";
+        } else if (errorMsg.includes('quota') || errorMsg.includes('limit')) {
+          errorMessage = "⚠️ API quota exceeded. Please try again later.";
+        } else if (errorMsg.includes('model') || errorMsg.includes('not found')) {
+          errorMessage = "⚠️ Model not available. Please contact support.";
+        } else if (errorMsg.includes('blocked') || errorMsg.includes('safety')) {
+          errorMessage = "⚠️ Content was blocked for safety reasons. Please rephrase your message.";
+        }
+      }
+      
+      throw new Error(errorMessage);
+    }
 
-    const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!raw) {
+      throw new Error("⚠️ Empty response from API. Please try again.");
+    }
+
     const apiResponseText = cleanBotText(raw);
 
     // Type the reply
     await typeInto(messageElement, apiResponseText, 16);
 
-    // push history
+    // Add to history
     chatHistory.push({ role: "model", parts: [{ text: apiResponseText }] });
     trimHistory();
+
   } catch (err) {
     console.error("❌ API Error:", err);
-    messageElement.innerText = "⚠️ Something went wrong. Please try again later.";
+    messageElement.innerText = err.message || "⚠️ Something went wrong. Please try again later.";
   } finally {
     selectedImages = [];
     formEl.classList.remove("has-attachments");
@@ -280,8 +353,28 @@ const handleOutgoingMessage = (e) => {
     outgoingMessageDiv.appendChild(imgWrap);
   }
 
-  // add to history (images merged later)
-  chatHistory.push({ role: "user", parts: [{ text: userData.message || "" }] });
+  // Build user message parts properly
+  const userParts = [];
+  
+  // Add images first if any
+  if (selectedImages.length) {
+    selectedImages.forEach(({ file, b64 }) => {
+      userParts.push({
+        inline_data: {
+          mime_type: file.type || "image/*",
+          data: b64
+        }
+      });
+    });
+  }
+  
+  // Add text
+  if (userData.message) {
+    userParts.push({ text: userData.message });
+  }
+
+  // Add to history with proper structure
+  chatHistory.push({ role: "user", parts: userParts });
   trimHistory();
 
   // reset input + scroll
