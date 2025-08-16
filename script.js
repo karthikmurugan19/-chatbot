@@ -72,7 +72,7 @@ HEALTHY PLANET CONTEXT:
 - We sell supplements, vitamins, natural health products, organic foods, and wellness items
 - We have multiple store locations across Canada
 - We offer both in-store and online shopping
-- We focus on natural, organic, health-conscious products, organic fresh produce, organic meats and organic dairy and eggs
+- We focus on natural, organic, and health-conscious products
 
 RESPONSE STYLE:
 - Keep responses concise and helpful like a knowledgeable store employee
@@ -129,12 +129,28 @@ const processLinks = (text) => {
   return text.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
 };
 
-// Enhanced response processing with better link integration - FIXED VERSION
+// Enhanced response processing with better link integration - IMPROVED VERSION
 const enhanceResponse = (text, userQuery) => {
   let enhanced = text;
   
+  // Debug logging
+  console.log('Original text:', text);
+  console.log('User query:', userQuery);
+  
+  // FIRST: Replace any raw URLs with "click here" links
+  // Replace store locator URL
+  enhanced = enhanced.replace(
+    new RegExp(STORE_LOCATOR_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\// Enhanced response processing with better link integration - FIXED VERSION
+const enhanceResponse = (text, userQuery) => {
+  let enhanced = text;
+  
+  // Debug logging
+  console.log('Original text:', text);
+  console.log('User query:', userQuery);
+  
   // Check if user asked about store info and response doesn't already have store locator
   if (isStoreRelated(userQuery) && !enhanced.includes(STORE_LOCATOR_URL)) {
+    console.log('Adding store locator link');
     // Look for natural places to insert store locator link
     if (enhanced.includes('store') || enhanced.includes('location') || enhanced.includes('hours')) {
       enhanced = enhanced.replace(
@@ -148,6 +164,7 @@ const enhanceResponse = (text, userQuery) => {
   
   // Check if user asked about returns and response doesn't already have return policy
   if (isReturnRelated(userQuery) && !enhanced.includes(RETURN_POLICY_URL)) {
+    console.log('Adding return policy link');
     // Look for natural places to insert return policy link
     if (enhanced.includes('return') || enhanced.includes('refund') || enhanced.includes('exchange')) {
       enhanced = enhanced.replace(
@@ -159,6 +176,70 @@ const enhanceResponse = (text, userQuery) => {
     }
   }
   
+  console.log('Enhanced text:', enhanced);
+  return enhanced;
+};'), 'gi'),
+    `<a href="${STORE_LOCATOR_URL}" target="_blank" rel="noopener noreferrer">click here</a>`
+  );
+  
+  // Replace return policy URL
+  enhanced = enhanced.replace(
+    new RegExp(RETURN_POLICY_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\// Enhanced response processing with better link integration - FIXED VERSION
+const enhanceResponse = (text, userQuery) => {
+  let enhanced = text;
+  
+  // Debug logging
+  console.log('Original text:', text);
+  console.log('User query:', userQuery);
+  
+  // Check if user asked about store info and response doesn't already have store locator
+  if (isStoreRelated(userQuery) && !enhanced.includes(STORE_LOCATOR_URL)) {
+    console.log('Adding store locator link');
+    // Look for natural places to insert store locator link
+    if (enhanced.includes('store') || enhanced.includes('location') || enhanced.includes('hours')) {
+      enhanced = enhanced.replace(
+        /(store[s]?|location[s]?|hours?|address|phone|contact)/i,
+        `$1 (<a href="${STORE_LOCATOR_URL}" target="_blank" rel="noopener noreferrer">click here</a>)`
+      );
+    } else {
+      enhanced += ` You can find store details <a href="${STORE_LOCATOR_URL}" target="_blank" rel="noopener noreferrer">here</a>.`;
+    }
+  }
+  
+  // Check if user asked about returns and response doesn't already have return policy
+  if (isReturnRelated(userQuery) && !enhanced.includes(RETURN_POLICY_URL)) {
+    console.log('Adding return policy link');
+    // Look for natural places to insert return policy link
+    if (enhanced.includes('return') || enhanced.includes('refund') || enhanced.includes('exchange')) {
+      enhanced = enhanced.replace(
+        /(return[s]?|refund[s]?|exchange[s]?|policy)/i,
+        `$1 (<a href="${RETURN_POLICY_URL}" target="_blank" rel="noopener noreferrer">click here</a>)`
+      );
+    } else {
+      enhanced += ` Check our return policy <a href="${RETURN_POLICY_URL}" target="_blank" rel="noopener noreferrer">here</a> for complete details.`;
+    }
+  }
+  
+  console.log('Enhanced text:', enhanced);
+  return enhanced;
+};'), 'gi'),
+    `<a href="${RETURN_POLICY_URL}" target="_blank" rel="noopener noreferrer">click here</a>`
+  );
+  
+  // SECOND: Add contextual links if they don't exist
+  // Check if user asked about store info and response doesn't already have store locator
+  if (isStoreRelated(userQuery) && !enhanced.includes(STORE_LOCATOR_URL) && !enhanced.includes('store locator')) {
+    console.log('Adding store locator link');
+    enhanced += ` You can find store details <a href="${STORE_LOCATOR_URL}" target="_blank" rel="noopener noreferrer">here</a>.`;
+  }
+  
+  // Check if user asked about returns and response doesn't already have return policy
+  if (isReturnRelated(userQuery) && !enhanced.includes(RETURN_POLICY_URL) && !enhanced.includes('return policy')) {
+    console.log('Adding return policy link');
+    enhanced += ` Check our return policy <a href="${RETURN_POLICY_URL}" target="_blank" rel="noopener noreferrer">here</a> for complete details.`;
+  }
+  
+  console.log('Enhanced text:', enhanced);
   return enhanced;
 };
 
@@ -438,12 +519,17 @@ const generateBotResponse = async (incomingMessageDiv) => {
     // Enhance response with contextually appropriate links
     apiResponseText = enhanceResponse(apiResponseText, userText);
 
+    // Debug: Log the final response before rendering
+    console.log('Final API response text:', apiResponseText);
+    
     // Type as plain text first, then replace with HTML
     const plainText = apiResponseText.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
     await typeInto(messageElement, plainText, 16);
     
     // Now set the HTML content with proper formatting
-    messageElement.innerHTML = apiResponseText.replace(/\n/g, '<br>');
+    const finalHTML = apiResponseText.replace(/\n/g, '<br>');
+    console.log('Setting innerHTML to:', finalHTML);
+    messageElement.innerHTML = finalHTML;
 
     // Add to history
     chatHistory.push({ role: "model", parts: [{ text: raw }] }); // Store original response
