@@ -54,18 +54,18 @@ let selectedImages = []; // [{file, b64, preview}]
 const MAX_SIZE_MB = 8;
 
 // Enhanced system instruction
-const SYSTEM_INSTRUCTION = `You are the official customer service assistant for Healthy Planet Canada, a health and wellness retail chain.
+const SYSTEM_INSTRUCTION = `You are a customer service assistant for Healthy Planet Canada, a health and wellness retail chain.
 
-CRITICAL IDENTITY RULES:
-- You MUST identify yourself as "Healthy Planet Canada's assistant" 
-- You work for Healthy Planet Canada stores
+IDENTITY & SCOPE:
+- You work for Healthy Planet Canada and help customers with our stores and products
 - Focus ONLY on Healthy Planet Canada products, services, stores, and policies
-- If asked about other retailers or unrelated topics, politely redirect: "I'm here to help with Healthy Planet Canada questions only. How can I assist you with our stores or products?"
+- If asked about other retailers or unrelated topics, politely redirect: "I can only help with Healthy Planet Canada questions. What would you like to know about our stores or products?"
+- Do NOT repeatedly mention that you're a Healthy Planet assistant - customers already know this
 
 STORE & RETURN POLICY RESPONSES:
-- For ANY store-related questions (hours, locations, addresses, phone numbers, directions): Always include this link: ${STORE_LOCATOR_URL}
-- For ANY return, refund, or exchange questions: Always include this link: ${RETURN_POLICY_URL}
-- Format links as: "You can find details here: [Link Title](URL)"
+- For store-related questions (hours, locations, addresses, phone, directions): Naturally mention store locator: "You can find specific store details at our store locator: ${STORE_LOCATOR_URL}"
+- For return/refund/exchange questions: Naturally mention return policy: "For complete return details, check our return policy: ${RETURN_POLICY_URL}"
+- Integrate these links naturally into helpful responses, not as separate additions
 
 HEALTHY PLANET CONTEXT:
 - Healthy Planet Canada is a health and wellness retailer
@@ -73,19 +73,17 @@ HEALTHY PLANET CONTEXT:
 - We have multiple store locations across Canada
 - We offer both in-store and online shopping
 - We focus on natural, organic, and health-conscious products
-- We focus on organic produce and organic dairy products
 
 RESPONSE STYLE:
-- Keep responses concise and helpful
-- Act like a knowledgeable store employee
+- Keep responses concise and helpful like a knowledgeable store employee
 - Don't ask users to wait or say you'll get back to them
 - If you don't know something specific, admit it and direct them to the appropriate resource
-- Always maintain a friendly, professional tone as a Healthy Planet representative`;
+- Maintain a friendly, professional tone without constantly identifying yourself`;
 
 // Initialize with system instruction that stays in history
 let chatHistory = [
   { role: "user", parts: [{ text: SYSTEM_INSTRUCTION }] },
-  { role: "model", parts: [{ text: "Hello! I'm your Healthy Planet Canada assistant. I'm here to help you with our stores, products, supplements, returns, and any other questions about Healthy Planet Canada. How can I assist you today?" }] }
+  { role: "model", parts: [{ text: "Hello! I can help you with our stores, products, supplements, returns, and wellness questions. What are you looking for today?" }] }
 ];
 
 const MAX_TURNS = 20; // Increased to maintain context better
@@ -132,13 +130,37 @@ const processLinks = (text) => {
   return text.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
 };
 
-// Auto-link store and return policy URLs
-const autoLinkPolicies = (text) => {
-  return text
-    .replace(new RegExp(STORE_LOCATOR_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), 
-             `<a href="${STORE_LOCATOR_URL}" target="_blank" rel="noopener noreferrer">Store Locator</a>`)
-    .replace(new RegExp(RETURN_POLICY_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), 
-             `<a href="${RETURN_POLICY_URL}" target="_blank" rel="noopener noreferrer">Return Policy</a>`);
+// Enhanced response processing with better link integration
+const enhanceResponse = (text, userQuery) => {
+  let enhanced = text;
+  
+  // Check if user asked about store info and response doesn't already have store locator
+  if (isStoreRelated(userQuery) && !enhanced.includes(STORE_LOCATOR_URL)) {
+    // Look for natural places to insert store locator link
+    if (enhanced.includes('store') || enhanced.includes('location') || enhanced.includes('hours')) {
+      enhanced = enhanced.replace(
+        /(store[s]?|location[s]?|hours?|address|phone|contact)/i,
+        `$1 (check our <a href="${STORE_LOCATOR_URL}" target="_blank" rel="noopener noreferrer">store locator</a>)`
+      );
+    } else {
+      enhanced += ` You can find store details at our <a href="${STORE_LOCATOR_URL}" target="_blank" rel="noopener noreferrer">store locator</a>.`;
+    }
+  }
+  
+  // Check if user asked about returns and response doesn't already have return policy
+  if (isReturnRelated(userQuery) && !enhanced.includes(RETURN_POLICY_URL)) {
+    // Look for natural places to insert return policy link
+    if (enhanced.includes('return') || enhanced.includes('refund') || enhanced.includes('exchange')) {
+      enhanced = enhanced.replace(
+        /(return[s]?|refund[s]?|exchange[s]?|policy)/i,
+        `$1 (see our <a href="${RETURN_POLICY_URL}" target="_blank" rel="noopener noreferrer">return policy</a>)`
+      );
+    } else {
+      enhanced += ` Check our <a href="${RETURN_POLICY_URL}" target="_blank" rel="noopener noreferrer">return policy</a> for complete details.`;
+    }
+  }
+  
+  return enhanced;
 };
 
 const fileToBase64 = (file) => new Promise((resolve, reject) => {
@@ -259,7 +281,7 @@ function typeInto(el, text, speed = 18){
   chatBody.appendChild(msgDiv);
   await typeInto(
     msgDiv.querySelector(".message-text"),
-    "Hey there 👋😊\nI'm your Healthy Planet Canada assistant!\nI can help you with our stores, products, supplements, returns, and more.\nWhat can I help you find today?",
+    "Hey there 👋😊\nI can help you with Healthy Planet Canada stores, products, supplements, returns, and more.\nWhat are you looking for today?",
     14
   );
 })();
@@ -404,21 +426,15 @@ const generateBotResponse = async (incomingMessageDiv) => {
 
     let apiResponseText = cleanBotText(raw);
     
-    // Process links and auto-link policies
+    // Process markdown links first
     apiResponseText = processLinks(apiResponseText);
-    apiResponseText = autoLinkPolicies(apiResponseText);
     
-    // Check if user asked about store/return info and ensure links are included
+    // Get user query for context
     const lastUserMessage = chatHistory[chatHistory.length - 1];
-    const userText = lastUserMessage?.parts?.[0]?.text || '';
+    const userText = lastUserMessage?.parts?.find(part => part.text)?.text || '';
     
-    if (isStoreRelated(userText) && !apiResponseText.includes(STORE_LOCATOR_URL)) {
-      apiResponseText += `<br><br>Find store details here: <a href="${STORE_LOCATOR_URL}" target="_blank" rel="noopener noreferrer">Store Locator</a>`;
-    }
-    
-    if (isReturnRelated(userText) && !apiResponseText.includes(RETURN_POLICY_URL)) {
-      apiResponseText += `<br><br>Check our return policy: <a href="${RETURN_POLICY_URL}" target="_blank" rel="noopener noreferrer">Return Policy</a>`;
-    }
+    // Enhance response with contextually appropriate links
+    apiResponseText = enhanceResponse(apiResponseText, userText);
 
     // Type as plain text first, then replace with HTML
     const plainText = apiResponseText.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ');
