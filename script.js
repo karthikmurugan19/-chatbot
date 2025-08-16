@@ -38,8 +38,10 @@ const inputCamera = document.querySelector("#file-camera");
 const formEl = document.querySelector(".chat-form");
 
 // ===== Config / Constants =====
-const API_KEY = "AIzaSyDjWSYA7pDcUiddC3SvhJnxTXBAie1j4WE"; // ⚠️ Replace + proxy in production
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+// ⚠️ SECURITY WARNING: Never expose API keys in frontend code!
+// Move this to a backend proxy or use environment variables
+const API_KEY = "AIzaSyDjWSYA7pDcUiddC3SvhJnxTXBAie1j4WE"; // Replace with your actual API key
+const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${API_KEY}`;
 
 const STORE_LOCATOR_URL = "https://www.healthyplanetcanada.com/storelocator";
 const RETURN_POLICY_URL = "https://www.healthyplanetcanada.com/return-policy";
@@ -71,7 +73,7 @@ Accuracy:
 - Do not invent or guess answers. If unsure, state that and ask a concise follow-up to resolve.
 `;
 
-let chatHistory = [{ role: "user", parts: [{ text: SYSTEM_INSTRUCTION }] }];
+let chatHistory = [];
 const MAX_TURNS = 12;
 let selectedImages = []; // [{file, b64}]
 const MAX_SIZE_MB = 8;
@@ -100,7 +102,7 @@ const cleanBotText = (raw = "") =>
     .replace(/^\s*\d+\.\s+/gm, "")
     .replace(/[ \t]{2,}/g, " ")
     .replace(/\n{3,}/g, "\n\n")
-    .replace(/\b(please\s+wait|hang\s+tight|hold\s+on|give\s+me\s+a\s+moment|one\s+moment|i['’]ll\s+get\s+back\s+to\s+you)[^.!?]*[.!?]/gi, "")
+    .replace(/\b(please\s+wait|hang\s+tight|hold\s+on|give\s+me\s+a\s+moment|one\s+moment|i['']ll\s+get\s+back\s+to\s+you)[^.!?]*[.!?]/gi, "")
     .trim();
 
 const escapeHTML = (s = "") =>
@@ -157,8 +159,10 @@ function typeInto(el, text, speed = 16) {
 }
 
 const trimHistory = () => {
-  const keep = 1 + Math.min(chatHistory.length - 1, MAX_TURNS * 2);
-  if (chatHistory.length > keep) chatHistory = [chatHistory[0], ...chatHistory.slice(-keep + 1)];
+  const keep = Math.min(chatHistory.length, MAX_TURNS * 2);
+  if (chatHistory.length > keep) {
+    chatHistory = chatHistory.slice(-keep);
+  }
 };
 
 // Store info/hours detection → shortcut to locator
@@ -218,34 +222,84 @@ inputCamera.addEventListener("change", async (e) => {
 const generateBotResponse = async (incomingMessageDiv) => {
   const messageElement = incomingMessageDiv.querySelector(".message-text");
 
-  // Attach images to most recent user turn
-  let lastUser = -1;
-  for (let i = chatHistory.length - 1; i >= 0; i--) {
-    if (chatHistory[i].role === "user") {
-      lastUser = i;
-      break;
-    }
-  }
-  if (lastUser !== -1 && selectedImages.length) {
-    const imageParts = selectedImages.map(({ file, b64 }) => ({
-      inline_data: { mime_type: file.type || "image/*", data: b64 },
-    }));
-    const parts = chatHistory[lastUser].parts || [];
-    chatHistory[lastUser] = { role: "user", parts: [...imageParts, ...parts] };
-  }
-
-  const requestOptions = {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ contents: chatHistory }),
-  };
-
   try {
+    // Build the request payload
+    const contents = [];
+    
+    // Add system instruction as first message if history is empty
+    if (chatHistory.length === 0) {
+      contents.push({
+        role: "user",
+        parts: [{ text: SYSTEM_INSTRUCTION }]
+      });
+      contents.push({
+        role: "model", 
+        parts: [{ text: "I understand. I'm here to help with Healthy Planet Canada questions." }]
+      });
+    }
+    
+    // Add conversation history
+    contents.push(...chatHistory);
+
+    const requestOptions = {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ 
+        contents: contents,
+        generationConfig: {
+          temperature: 0.7,
+          topK: 40,
+          topP: 0.95,
+          maxOutputTokens: 1024,
+        },
+        safetySettings: [
+          {
+            category: "HARM_CATEGORY_HARASSMENT",
+            threshold: "BLOCK_MEDIUM_AND_ABOVE"
+          },
+          {
+            category: "HARM_CATEGORY_HATE_SPEECH", 
+            threshold: "BLOCK_MEDIUM_AND_ABOVE"
+          },
+          {
+            category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+            threshold: "BLOCK_MEDIUM_AND_ABOVE"
+          },
+          {
+            category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+            threshold: "BLOCK_MEDIUM_AND_ABOVE"
+          }
+        ]
+      }),
+    };
+
     const response = await fetch(API_URL, requestOptions);
     const data = await response.json();
-    if (!response.ok) throw new Error(data?.error?.message || "Request failed");
+    
+    if (!response.ok) {
+      console.error("API Error Response:", data);
+      let errorMessage = "⚠️ Something went wrong. Please try again later.";
+      
+      if (data?.error?.message) {
+        if (data.error.message.includes("API key")) {
+          errorMessage = "⚠️ API key issue. Please check your configuration.";
+        } else if (data.error.message.includes("quota")) {
+          errorMessage = "⚠️ API quota exceeded. Please try again later.";
+        } else if (data.error.message.includes("model")) {
+          errorMessage = "⚠️ Model not available. Please contact support.";
+        }
+      }
+      
+      throw new Error(errorMessage);
+    }
 
     const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+    if (!raw) {
+      throw new Error("⚠️ Empty response from API. Please try again.");
+    }
+
     const apiResponseText = cleanBotText(raw);
 
     // Type the reply as text, then replace with linkified HTML
@@ -256,7 +310,7 @@ const generateBotResponse = async (incomingMessageDiv) => {
     trimHistory();
   } catch (err) {
     console.error("❌ API Error:", err);
-    messageElement.innerText = "⚠️ Something went wrong. Please try again later.";
+    messageElement.innerText = err.message || "⚠️ Something went wrong. Please try again later.";
   } finally {
     selectedImages = [];
     formEl.classList.remove("has-attachments");
@@ -303,8 +357,28 @@ const handleOutgoingMessage = (e) => {
     outgoingMessageDiv.appendChild(imgWrap);
   }
 
-  // Add user turn to history (images merged later)
-  chatHistory.push({ role: "user", parts: [{ text: userText || "" }] });
+  // Build user message parts
+  const userParts = [];
+  
+  // Add images first
+  if (selectedImages.length) {
+    selectedImages.forEach(({ file, b64 }) => {
+      userParts.push({
+        inline_data: {
+          mime_type: file.type || "image/*",
+          data: b64
+        }
+      });
+    });
+  }
+  
+  // Add text
+  if (userText) {
+    userParts.push({ text: userText });
+  }
+
+  // Add user turn to history
+  chatHistory.push({ role: "user", parts: userParts });
   trimHistory();
 
   // reset input + scroll
