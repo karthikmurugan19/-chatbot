@@ -1,12 +1,12 @@
-// IMPORTANT: load as type="module" in index.html
+// IMPORTANT: this file is loaded with type="module" in index.html
 
-// --- Mobile viewport height fix (iOS/Android address bar) ---
+// --- mobile viewport height fix (iOS/Android address bar) ---
 function setAppHeight() {
   const vh = window.innerHeight;
-  document.documentElement.style.setProperty("--app-height", `${vh}px`);
+  document.documentElement.style.setProperty('--app-height', `${vh}px`);
 }
-window.addEventListener("resize", setAppHeight);
-window.addEventListener("orientationchange", setAppHeight);
+window.addEventListener('resize', setAppHeight);
+window.addEventListener('orientationchange', setAppHeight);
 setAppHeight();
 
 // ===== UI open/close (chat opens by default) =====
@@ -14,16 +14,9 @@ const chatbot = document.getElementById("chatbot");
 const bubble = document.getElementById("chat-bubble");
 const minimizeBtn = document.getElementById("minimize-chat");
 
-function openChat() {
-  chatbot.classList.add("open");
-  chatbot.setAttribute("aria-hidden", "false");
-  bubble.hidden = true;
-}
-function closeChat() {
-  chatbot.classList.remove("open");
-  chatbot.setAttribute("aria-hidden", "true");
-  bubble.hidden = false;
-}
+function openChat(){ chatbot.classList.add("open"); chatbot.setAttribute("aria-hidden","false"); bubble.hidden = true; }
+function closeChat(){ chatbot.classList.remove("open"); chatbot.setAttribute("aria-hidden","true"); bubble.hidden = false; }
+
 openChat();
 bubble.addEventListener("click", openChat);
 minimizeBtn.addEventListener("click", closeChat);
@@ -33,50 +26,36 @@ const chatBody = document.querySelector(".chat-body");
 const messageInput = document.querySelector(".message-input");
 const attachBtn = document.querySelector("#btn-attach");
 const cameraBtn = document.querySelector("#btn-camera");
+const emojiBtn = document.querySelector("#btn-emoji");
 const inputAttach = document.querySelector("#file-attach");
 const inputCamera = document.querySelector("#file-camera");
 const formEl = document.querySelector(".chat-form");
 
-// ===== Config / Constants =====
-// ⚠️ SECURITY WARNING: Never expose API keys in frontend code!
-// Move this to a backend proxy or use environment variables
-const API_KEY = "AIzaSyDjWSYA7pDcUiddC3SvhJnxTXBAie1j4WE"; // Replace with your actual API key
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${API_KEY}`;
+// ===== Gemini config =====
+const API_KEY = "AIzaSyDjWSYA7pDcUiddC3SvhJnxTXBAie1j4WE"; // ⚠️ Replace + proxy in production
+const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
 
-const STORE_LOCATOR_URL = "https://www.healthyplanetcanada.com/storelocator";
-const RETURN_POLICY_URL = "https://www.healthyplanetcanada.com/return-policy";
-
-// Expanded system instruction (incl. produce & dairy)
-const SYSTEM_INSTRUCTION = `
-You are a helpful assistant for Healthy Planet Canada.
-
-Scope:
-- Focus on Healthy Planet stores, products, groceries, supplements, returns, or related services.
-- You may also answer questions about grocery items, including fresh produce and dairy (e.g., availability in general, nutrition, ingredients, storage/handling, substitutions, dietary/lifestyle fit).
-
-If out of scope:
-- If the topic is unrelated, gently say: "I'm here to help with Healthy Planet Canada. Please ask something related to it."
-
-Style:
-- Continue the conversation naturally without asking the user to repeat context.
-- Keep replies concise, friendly, and actionable.
-- Do NOT ask users to wait or say you'll get back later. Answer immediately with what you know and then ask helpful follow-up if needed.
-- If uncertain, do not guess—say so briefly and ask a clarifying question.
-
-Operational info & policies:
-- For store information (hours, address, phone, directions), direct users to the Store Locator and offer to help if they share a city or postal code:
-  ${STORE_LOCATOR_URL}
-- For return/refund details, refer to the Return Policy:
-  ${RETURN_POLICY_URL}
-
-Accuracy:
-- Do not invent or guess answers. If unsure, state that and ask a concise follow-up to resolve.
-`;
-
-let chatHistory = [];
-const MAX_TURNS = 12;
+// ===== State =====
 let selectedImages = []; // [{file, b64}]
 const MAX_SIZE_MB = 8;
+
+const SYSTEM_INSTRUCTION =
+`You are a helpful assistant for Healthy Planet Canada.
+Stay focused on Healthy Planet stores, products, supplements, returns, or related services.
+If the topic is unrelated, gently say: "I'm here to help with Healthy Planet Canada. Please ask something related to it."
+Continue the conversation naturally without asking the user to repeat context. Keep replies concise and friendly.
+
+Critical policies:
+- If a user asks about store information or operational hours, direct them to the Store Locator on the Healthy Planet Canada website. Offer to point them to the right page if they share their city or postal code.
+- Do not invent or guess answers. If uncertain, say so briefly and ask a helpful follow-up question.
+- Do NOT ask users to wait or say you'll get back later. Answer immediately with what you know and follow up with clarifying questions if needed.`;
+
+let chatHistory = [{ role: "user", parts: [{ text: SYSTEM_INSTRUCTION }] }];
+const MAX_TURNS = 12;
+const trimHistory = () => {
+  const keep = 1 + Math.min(chatHistory.length - 1, MAX_TURNS * 2);
+  if (chatHistory.length > keep) chatHistory = [chatHistory[0], ...chatHistory.slice(-keep + 1)];
+};
 
 // ===== Helpers =====
 const createMessageElement = (content, ...classes) => {
@@ -86,86 +65,123 @@ const createMessageElement = (content, ...classes) => {
   return div;
 };
 
-// Clean text but keep links (we'll linkify after typing)
 const cleanBotText = (raw = "") =>
   raw
+    // Strip markdown formatting and links
     .replace(/```[\s\S]*?```/g, (m) => m.replace(/```/g, ""))
-    .replace(/`([^`]+)`/g, "$1")
     .replace(/\*\*(.*?)\*\*/g, "$1")
     .replace(/__(.*?)__/g, "$1")
     .replace(/\*(.*?)\*/g, "$1")
     .replace(/_(.*?)_/g, "$1")
     .replace(/~~(.*?)~~/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/!\[(.*?)\]\(.*?\)/g, "$1")
+    .replace(/\[(.*?)\]\(.*?\)/g, "$1")
     .replace(/^\s{0,3}#{1,6}\s+/gm, "")
     .replace(/^\s{0,3}>\s?/gm, "")
     .replace(/^\s*[-*+]\s+/gm, "")
     .replace(/^\s*\d+\.\s+/gm, "")
+    .replace(/<\/?([a-z][a-z0-9]*)\b[^>]*>/gi, "")
     .replace(/[ \t]{2,}/g, " ")
     .replace(/\n{3,}/g, "\n\n")
-    .replace(/\b(please\s+wait|hang\s+tight|hold\s+on|give\s+me\s+a\s+moment|one\s+moment|i['']ll\s+get\s+back\s+to\s+you)[^.!?]*[.!?]/gi, "")
+    // Remove “please wait/hang tight/I'll get back...” sentences
+    .replace(/\b(please\s+wait|hang\s+tight|hold\s+on|give\s+me\s+a\s+moment|one\s+moment|i['’]ll\s+get\s+back\s+to\s+you)[^.!?]*[.!?]/gi, "")
     .trim();
 
-const escapeHTML = (s = "") =>
-  s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-
-const markdownLinksToAnchors = (text = "") =>
-  text.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (_m, label, url) =>
-    `<a href="${url}" target="_blank" rel="noopener">${label}</a>`);
-
-const urlToAnchors = (text = "") =>
-  text.replace(/(?:https?:\/\/|www\.)[^\s)]+/g, (url) => {
-    const href = url.startsWith("http") ? url : `https://${url}`;
-    return `<a href="${href}" target="_blank" rel="noopener">${url}</a>`;
-  });
-
-// Escape first, then only add <a> tags
-const linkify = (plainText = "") => {
-  const safe = escapeHTML(plainText);
-  return urlToAnchors(markdownLinksToAnchors(safe));
-};
-
-const fileToBase64 = (file) =>
-  new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result).split(",")[1]);
-    r.onerror = reject;
-    r.readAsDataURL(file);
-  });
+const fileToBase64 = (file) => new Promise((resolve, reject) => {
+  const r = new FileReader();
+  r.onload = () => resolve(String(r.result).split(",")[1]);
+  r.onerror = reject;
+  r.readAsDataURL(file);
+});
 
 const addFiles = async (fileList) => {
   const files = Array.from(fileList || []).filter((f) => f.type.startsWith("image/"));
   for (const file of files) {
-    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
-      alert(`${file.name} is larger than ${MAX_SIZE_MB} MB`);
-      continue;
-    }
+    if (file.size > MAX_SIZE_MB * 1024 * 1024) { alert(`${file.name} is larger than ${MAX_SIZE_MB} MB`); continue; }
     selectedImages.push({ file, b64: await fileToBase64(file) });
   }
   if (selectedImages.length) formEl.classList.add("has-attachments");
 };
 
-function typeInto(el, text, speed = 16) {
+function insertAtCursor(el, text){
+  const start = el.selectionStart ?? el.value.length;
+  const end = el.selectionEnd ?? el.value.length;
+  el.value = el.value.slice(0,start) + text + el.value.slice(end);
+  const pos = start + text.length;
+  el.setSelectionRange(pos, pos);
+  el.dispatchEvent(new Event('input', { bubbles: true })); // update :valid for send visibility
+}
+
+// Typewriter for bot text
+function typeInto(el, text, speed = 16){
   return new Promise((resolve) => {
     let i = 0;
     const t = setInterval(() => {
       el.textContent = text.slice(0, i++);
       chatBody.scrollTop = chatBody.scrollHeight;
-      if (i > text.length) {
-        clearInterval(t);
-        resolve();
-      }
+      if (i > text.length) { clearInterval(t); resolve(); }
     }, speed);
   });
 }
 
-const trimHistory = () => {
-  const keep = Math.min(chatHistory.length, MAX_TURNS * 2);
-  if (chatHistory.length > keep) {
-    chatHistory = chatHistory.slice(-keep);
-  }
-};
+// Greeting message
+(async () => {
+  const msgDiv = document.createElement("div");
+  msgDiv.classList.add("message", "bot-message");
+  msgDiv.innerHTML = `<div class="message-text"></div>`;
+  chatBody.appendChild(msgDiv);
+  await typeInto(
+    msgDiv.querySelector(".message-text"),
+    "Hey there 👋😊\nWelcome to Healthy Planet Canada Online Assistant.\nHow can I help you today?",
+    14
+  );
+})();
 
-// Store info/hours detection → shortcut to locator
+// ===== Image & Emoji =====
+attachBtn?.addEventListener("click", () => inputAttach.click());
+cameraBtn?.addEventListener("click", () => inputCamera.click());
+inputAttach.addEventListener("change", async (e) => { await addFiles(e.target.files); inputAttach.value = ""; });
+inputCamera.addEventListener("change", async (e) => { await addFiles(e.target.files); inputCamera.value = ""; });
+
+// Emoji Mart (dynamic import for GitHub Pages)
+import('https://cdn.jsdelivr.net/npm/emoji-mart@latest/dist/browser.js').then(({ Picker }) => {
+  const picker = new Picker({
+    theme: 'light',
+    skinTonePosition: 'none',
+    searchPosition: 'none',
+    previewPosition: 'none'
+  });
+  let open = false;
+
+  emojiBtn?.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (!open) {
+      const rect = emojiBtn.getBoundingClientRect();
+      picker.style.position = 'fixed';
+      picker.style.right = `${window.innerWidth - rect.right}px`;
+      picker.style.bottom = `${window.innerHeight - rect.top + 8}px`;
+      picker.style.zIndex = '2000';
+      document.body.appendChild(picker);
+      open = true;
+    } else {
+      picker.remove(); open = false;
+    }
+  });
+
+  picker.addEventListener('emoji:select', (ev) => {
+    insertAtCursor(messageInput, ev.emoji.native);
+    messageInput.focus();
+  });
+
+  document.addEventListener('click', (ev) => {
+    if (open && !picker.contains(ev.target) && ev.target !== emojiBtn) {
+      picker.remove(); open = false;
+    }
+  });
+});
+
+// ===== Domain shortcut: store info / hours → Store Locator =====
 const isStoreInfoQuery = (text = "") => {
   const t = text.toLowerCase();
   return (
@@ -174,143 +190,49 @@ const isStoreInfoQuery = (text = "") => {
     /(what\s*time|when)\s+(do|does|are)\s+(you|the\s+store)\s+(open|close)/.test(t)
   );
 };
-
 const storeLocatorReply =
-  `For the most accurate store details (hours, address, phone), please use the Store Locator:\n${STORE_LOCATOR_URL}\n` +
-  `If you share your city or postal code, I can point you to the right page.`;
-
-// ===== Greeting + inline FAQ (first bot message) =====
-(async () => {
-  const msgDiv = document.createElement("div");
-  msgDiv.classList.add("message", "bot-message");
-  msgDiv.innerHTML = `<div class="message-text"></div>`;
-  chatBody.appendChild(msgDiv);
-
-  const textEl = msgDiv.querySelector(".message-text");
-  await typeInto(
-    textEl,
-    "Hey there 👋😊\nWelcome to Healthy Planet Canada Online Assistant.\nHow can I help you today?",
-    14
-  );
-
-  // Inline FAQ under the first bot message (two links only)
-  const faq = document.createElement("div");
-  faq.className = "faq-inline";
-  faq.innerHTML = `
-    <span class="faq-label">Quick links:</span>
-    <a href="${STORE_LOCATOR_URL}" target="_blank" rel="noopener">Store Locator & Hours</a>
-    <span class="sep">•</span>
-    <a href="${RETURN_POLICY_URL}" target="_blank" rel="noopener">Return & Refund Policy</a>
-  `;
-  textEl.appendChild(faq);
-  chatBody.scrollTop = chatBody.scrollHeight;
-})();
-
-// ===== Image buttons =====
-attachBtn?.addEventListener("click", () => inputAttach.click());
-cameraBtn?.addEventListener("click", () => inputCamera.click());
-inputAttach.addEventListener("change", async (e) => {
-  await addFiles(e.target.files);
-  inputAttach.value = "";
-});
-inputCamera.addEventListener("change", async (e) => {
-  await addFiles(e.target.files);
-  inputCamera.value = "";
-});
+  "For the most accurate store details (hours, address, phone), please use the **Store Locator** on the Healthy Planet Canada website.\n" +
+  "If you share your city or postal code, I can point you to the right page.";
 
 // ===== Gemini call =====
 const generateBotResponse = async (incomingMessageDiv) => {
   const messageElement = incomingMessageDiv.querySelector(".message-text");
 
+  // Attach images to most recent user turn in history
+  let lastUser = -1;
+  for (let i = chatHistory.length - 1; i >= 0; i--) {
+    if (chatHistory[i].role === "user") { lastUser = i; break; }
+  }
+  if (lastUser !== -1 && selectedImages.length) {
+    const imageParts = selectedImages.map(({ file, b64 }) => ({
+      inline_data: { mime_type: file.type || "image/*", data: b64 }
+    }));
+    const parts = chatHistory[lastUser].parts || [];
+    chatHistory[lastUser] = { role: "user", parts: [...imageParts, ...parts] };
+  }
+
+  const requestOptions = {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ contents: chatHistory })
+  };
+
   try {
-    // Build the request payload
-    const contents = [];
-    
-    // Add system instruction as first message if history is empty
-    if (chatHistory.length === 0) {
-      contents.push({
-        role: "user",
-        parts: [{ text: SYSTEM_INSTRUCTION }]
-      });
-      contents.push({
-        role: "model", 
-        parts: [{ text: "I understand. I'm here to help with Healthy Planet Canada questions." }]
-      });
-    }
-    
-    // Add conversation history
-    contents.push(...chatHistory);
-
-    const requestOptions = {
-      method: "POST",
-      headers: { 
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ 
-        contents: contents,
-        generationConfig: {
-          temperature: 0.7,
-          topK: 40,
-          topP: 0.95,
-          maxOutputTokens: 1024,
-        },
-        safetySettings: [
-          {
-            category: "HARM_CATEGORY_HARASSMENT",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE"
-          },
-          {
-            category: "HARM_CATEGORY_HATE_SPEECH", 
-            threshold: "BLOCK_MEDIUM_AND_ABOVE"
-          },
-          {
-            category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE"
-          },
-          {
-            category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE"
-          }
-        ]
-      }),
-    };
-
     const response = await fetch(API_URL, requestOptions);
     const data = await response.json();
-    
-    if (!response.ok) {
-      console.error("API Error Response:", data);
-      let errorMessage = "⚠️ Something went wrong. Please try again later.";
-      
-      if (data?.error?.message) {
-        if (data.error.message.includes("API key")) {
-          errorMessage = "⚠️ API key issue. Please check your configuration.";
-        } else if (data.error.message.includes("quota")) {
-          errorMessage = "⚠️ API quota exceeded. Please try again later.";
-        } else if (data.error.message.includes("model")) {
-          errorMessage = "⚠️ Model not available. Please contact support.";
-        }
-      }
-      
-      throw new Error(errorMessage);
-    }
+    if (!response.ok) throw new Error(data?.error?.message || "Request failed");
 
     const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-    if (!raw) {
-      throw new Error("⚠️ Empty response from API. Please try again.");
-    }
-
     const apiResponseText = cleanBotText(raw);
 
-    // Type the reply as text, then replace with linkified HTML
+    // Type the reply
     await typeInto(messageElement, apiResponseText, 16);
-    messageElement.innerHTML = linkify(apiResponseText);
 
     chatHistory.push({ role: "model", parts: [{ text: apiResponseText }] });
     trimHistory();
   } catch (err) {
     console.error("❌ API Error:", err);
-    messageElement.innerText = err.message || "⚠️ Something went wrong. Please try again later.";
+    messageElement.innerText = "⚠️ Something went wrong. Please try again later.";
   } finally {
     selectedImages = [];
     formEl.classList.remove("has-attachments");
@@ -330,7 +252,7 @@ const handleOutgoingMessage = (e) => {
   // allow sending if text or images present
   if (!userText && selectedImages.length === 0) return;
 
-  // user bubble
+  // user bubble (text)
   const outgoingMessageDiv = createMessageElement(`<div class="message-text"></div>`, "user-message");
   outgoingMessageDiv.querySelector(".message-text").textContent = userText || "(sent image)";
   chatBody.appendChild(outgoingMessageDiv);
@@ -339,66 +261,42 @@ const handleOutgoingMessage = (e) => {
   if (selectedImages.length) {
     const imgWrap = document.createElement("div");
     imgWrap.className = "image-preview-wrap";
-    Object.assign(imgWrap.style, { display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "8px" });
+    Object.assign(imgWrap.style, { display:"flex", flexWrap:"wrap", gap:"8px", marginTop:"8px" });
     selectedImages.forEach(({ file }) => {
       const url = URL.createObjectURL(file);
       const img = document.createElement("img");
       Object.assign(img.style, {
-        width: "120px",
-        height: "120px",
-        objectFit: "cover",
-        borderRadius: "12px",
-        border: "1px solid #e5e7eb",
+        width:"120px", height:"120px", objectFit:"cover",
+        borderRadius:"12px", border:"1px solid #e5e7eb"
       });
-      img.src = url;
-      img.alt = file.name;
+      img.src = url; img.alt = file.name;
       imgWrap.appendChild(img);
     });
     outgoingMessageDiv.appendChild(imgWrap);
   }
 
-  // Build user message parts
-  const userParts = [];
-  
-  // Add images first
-  if (selectedImages.length) {
-    selectedImages.forEach(({ file, b64 }) => {
-      userParts.push({
-        inline_data: {
-          mime_type: file.type || "image/*",
-          data: b64
-        }
-      });
-    });
-  }
-  
-  // Add text
-  if (userText) {
-    userParts.push({ text: userText });
-  }
-
-  // Add user turn to history
-  chatHistory.push({ role: "user", parts: userParts });
+  // Add user turn to history (images merged later)
+  chatHistory.push({ role: "user", parts: [{ text: userText || "" }] });
   trimHistory();
 
   // reset input + scroll
   messageInput.value = "";
   chatBody.scrollTop = chatBody.scrollHeight;
 
-  // Shortcut: store info/hours → locator reply (with linkify)
+  // --- Store info/hours shortcut ---
   if (isStoreInfoQuery(userText)) {
     const botDiv = createMessageElement(`<div class="message-text"></div>`, "bot-message");
     chatBody.appendChild(botDiv);
     chatBody.scrollTop = chatBody.scrollHeight;
 
+    // Type the store-locator reply (no API call)
     (async () => {
       const el = botDiv.querySelector(".message-text");
       await typeInto(el, storeLocatorReply, 16);
-      el.innerHTML = linkify(storeLocatorReply);
       chatHistory.push({ role: "model", parts: [{ text: storeLocatorReply }] });
       trimHistory();
     })();
-
+    // clear attachments flag if any
     selectedImages = [];
     formEl.classList.remove("has-attachments");
     return;
@@ -415,6 +313,7 @@ const handleOutgoingMessage = (e) => {
   chatBody.appendChild(incomingMessageDiv);
   chatBody.scrollTop = chatBody.scrollHeight;
 
+  // call API
   generateBotResponse(incomingMessageDiv);
 };
 
