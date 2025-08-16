@@ -1,3 +1,4 @@
+
 // IMPORTANT: this file is loaded with type="module" in index.html
 
 // --- mobile viewport height fix (iOS/Android address bar) ---
@@ -9,21 +10,30 @@ window.addEventListener('resize', setAppHeight);
 window.addEventListener('orientationchange', setAppHeight);
 setAppHeight();
 
-// ===== UI open/close (chat opens by default) =====
+// ===== UI open/close behavior (open by default) =====
 const chatbot = document.getElementById("chatbot");
 const bubble = document.getElementById("chat-bubble");
 const minimizeBtn = document.getElementById("minimize-chat");
 
-function openChat(){ chatbot.classList.add("open"); chatbot.setAttribute("aria-hidden","false"); bubble.hidden = true; }
-function closeChat(){ chatbot.classList.remove("open"); chatbot.setAttribute("aria-hidden","true"); bubble.hidden = false; }
+function openChat(){
+  chatbot.classList.add("open");
+  chatbot.setAttribute("aria-hidden","false");
+  bubble.hidden = true;
+}
+function closeChat(){
+  chatbot.classList.remove("open");
+  chatbot.setAttribute("aria-hidden","true");
+  bubble.hidden = false;
+}
 
-openChat();
+openChat(); // open on first load
 bubble.addEventListener("click", openChat);
 minimizeBtn.addEventListener("click", closeChat);
 
 // ===== Elements =====
 const chatBody = document.querySelector(".chat-body");
 const messageInput = document.querySelector(".message-input");
+const sendMessageButton = document.querySelector("#send-message");
 const attachBtn = document.querySelector("#btn-attach");
 const cameraBtn = document.querySelector("#btn-camera");
 const emojiBtn = document.querySelector("#btn-emoji");
@@ -33,14 +43,15 @@ const formEl = document.querySelector(".chat-form");
 
 // ===== Gemini config =====
 const API_KEY = "AIzaSyDjWSYA7pDcUiddC3SvhJnxTXBAie1j4WE"; // ⚠️ Replace + proxy in production
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+const API_URL =
+  `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
 
 // ===== State =====
+const userData = { message: null };
 let selectedImages = []; // [{file, b64}]
 const MAX_SIZE_MB = 8;
 
-const SYSTEM_INSTRUCTION =
-`You are a helpful assistant for Healthy Planet Canada.
+const SYSTEM_INSTRUCTION = `You are a helpful assistant for Healthy Planet Canada.
 Stay focused on Healthy Planet stores, products, supplements, returns, or related services.
 If the topic is unrelated, gently say: "I'm here to help with Healthy Planet Canada. Please ask something related to it."
 Continue the conversation naturally without asking the user to repeat context. Keep replies concise and friendly.
@@ -67,7 +78,6 @@ const createMessageElement = (content, ...classes) => {
 
 const cleanBotText = (raw = "") =>
   raw
-    // Strip markdown formatting and links
     .replace(/```[\s\S]*?```/g, (m) => m.replace(/```/g, ""))
     .replace(/\*\*(.*?)\*\*/g, "$1")
     .replace(/__(.*?)__/g, "$1")
@@ -84,8 +94,6 @@ const cleanBotText = (raw = "") =>
     .replace(/<\/?([a-z][a-z0-9]*)\b[^>]*>/gi, "")
     .replace(/[ \t]{2,}/g, " ")
     .replace(/\n{3,}/g, "\n\n")
-    // Remove “please wait/hang tight/I'll get back...” sentences
-    .replace(/\b(please\s+wait|hang\s+tight|hold\s+on|give\s+me\s+a\s+moment|one\s+moment|i['’]ll\s+get\s+back\s+to\s+you)[^.!?]*[.!?]/gi, "")
     .trim();
 
 const fileToBase64 = (file) => new Promise((resolve, reject) => {
@@ -113,8 +121,8 @@ function insertAtCursor(el, text){
   el.dispatchEvent(new Event('input', { bubbles: true })); // update :valid for send visibility
 }
 
-// Typewriter for bot text
-function typeInto(el, text, speed = 16){
+// ===== Typing animation (greeting + all bot replies) =====
+function typeInto(el, text, speed = 18){
   return new Promise((resolve) => {
     let i = 0;
     const t = setInterval(() => {
@@ -125,7 +133,7 @@ function typeInto(el, text, speed = 16){
   });
 }
 
-// Greeting message
+// Initial greeting
 (async () => {
   const msgDiv = document.createElement("div");
   msgDiv.classList.add("message", "bot-message");
@@ -138,67 +146,61 @@ function typeInto(el, text, speed = 16){
   );
 })();
 
-// ===== Image & Emoji =====
+// ===== Image + Emoji buttons =====
 attachBtn?.addEventListener("click", () => inputAttach.click());
 cameraBtn?.addEventListener("click", () => inputCamera.click());
 inputAttach.addEventListener("change", async (e) => { await addFiles(e.target.files); inputAttach.value = ""; });
 inputCamera.addEventListener("change", async (e) => { await addFiles(e.target.files); inputCamera.value = ""; });
 
 // Emoji Mart (dynamic import for GitHub Pages)
+let emojiPicker;
 import('https://cdn.jsdelivr.net/npm/emoji-mart@latest/dist/browser.js').then(({ Picker }) => {
-  const picker = new Picker({
+  // You can customize the picker here (locale, skin tone, etc.)
+  emojiPicker = new Picker({
     theme: 'light',
     skinTonePosition: 'none',
     searchPosition: 'none',
     previewPosition: 'none'
   });
-  let open = false;
+
+  let pickerOpen = false;
 
   emojiBtn?.addEventListener('click', (e) => {
     e.preventDefault();
-    if (!open) {
+    if (!pickerOpen) {
+      // Position it above the emoji button
       const rect = emojiBtn.getBoundingClientRect();
-      picker.style.position = 'fixed';
-      picker.style.right = `${window.innerWidth - rect.right}px`;
-      picker.style.bottom = `${window.innerHeight - rect.top + 8}px`;
-      picker.style.zIndex = '2000';
-      document.body.appendChild(picker);
-      open = true;
+      emojiPicker.style.position = 'fixed';
+      emojiPicker.style.right = `${window.innerWidth - rect.right}px`;
+      emojiPicker.style.bottom = `${window.innerHeight - rect.top + 8}px`;
+      emojiPicker.style.zIndex = '2000';
+      document.body.appendChild(emojiPicker);
+      pickerOpen = true;
     } else {
-      picker.remove(); open = false;
+      emojiPicker.remove();
+      pickerOpen = false;
     }
   });
 
-  picker.addEventListener('emoji:select', (ev) => {
-    insertAtCursor(messageInput, ev.emoji.native);
+  emojiPicker.addEventListener('emoji:select', (event) => {
+    insertAtCursor(messageInput, event.emoji.native);
     messageInput.focus();
   });
 
+  // Close picker if user clicks outside
   document.addEventListener('click', (ev) => {
-    if (open && !picker.contains(ev.target) && ev.target !== emojiBtn) {
-      picker.remove(); open = false;
+    if (pickerOpen && !emojiPicker.contains(ev.target) && ev.target !== emojiBtn) {
+      emojiPicker.remove();
+      pickerOpen = false;
     }
   });
 });
-
-// ===== Domain shortcut: store info / hours → Store Locator =====
-const isStoreInfoQuery = (text = "") => {
-  const t = text.toLowerCase();
-  return (
-    /(store|location|branch|shop|near|address|directions|map|number|phone|contact).*(hour|open|close|time|today|holiday)/.test(t) ||
-    /(hours?\s+of\s+(operation|opening|closing)|store\s*hours|opening\s*hours|closing\s*time)/.test(t) ||
-    /(what\s*time|when)\s+(do|does|are)\s+(you|the\s+store)\s+(open|close)/.test(t)
-  );
-};
-const storeLocatorReply =
-  "For the most accurate store details (hours, address, phone), please use the **Store Locator** on the Healthy Planet Canada website.\n" +
-  "If you share your city or postal code, I can point you to the right page.";
 
 // ===== Gemini call =====
 const generateBotResponse = async (incomingMessageDiv) => {
   const messageElement = incomingMessageDiv.querySelector(".message-text");
 
-  // Attach images to most recent user turn in history
+  // Attach images to most recent user turn
   let lastUser = -1;
   for (let i = chatHistory.length - 1; i >= 0; i--) {
     if (chatHistory[i].role === "user") { lastUser = i; break; }
@@ -228,6 +230,7 @@ const generateBotResponse = async (incomingMessageDiv) => {
     // Type the reply
     await typeInto(messageElement, apiResponseText, 16);
 
+    // push history
     chatHistory.push({ role: "model", parts: [{ text: apiResponseText }] });
     trimHistory();
   } catch (err) {
@@ -244,17 +247,19 @@ const generateBotResponse = async (incomingMessageDiv) => {
 // ===== Send flow =====
 const handleOutgoingMessage = (e) => {
   e.preventDefault();
-  const userText = messageInput.value.trim();
+  userData.message = messageInput.value.trim();
 
   // ensure open
   openChat();
 
   // allow sending if text or images present
-  if (!userText && selectedImages.length === 0) return;
+  if (!userData.message && selectedImages.length === 0) return;
 
   // user bubble (text)
-  const outgoingMessageDiv = createMessageElement(`<div class="message-text"></div>`, "user-message");
-  outgoingMessageDiv.querySelector(".message-text").textContent = userText || "(sent image)";
+  const messageContent = `<div class="message-text"></div>`;
+  const outgoingMessageDiv = createMessageElement(messageContent, "user-message");
+  outgoingMessageDiv.querySelector(".message-text").textContent =
+    userData.message || "(sent image)";
   chatBody.appendChild(outgoingMessageDiv);
 
   // image previews
@@ -275,50 +280,33 @@ const handleOutgoingMessage = (e) => {
     outgoingMessageDiv.appendChild(imgWrap);
   }
 
-  // Add user turn to history (images merged later)
-  chatHistory.push({ role: "user", parts: [{ text: userText || "" }] });
+  // add to history (images merged later)
+  chatHistory.push({ role: "user", parts: [{ text: userData.message || "" }] });
   trimHistory();
 
   // reset input + scroll
   messageInput.value = "";
   chatBody.scrollTop = chatBody.scrollHeight;
 
-  // --- Store info/hours shortcut ---
-  if (isStoreInfoQuery(userText)) {
-    const botDiv = createMessageElement(`<div class="message-text"></div>`, "bot-message");
-    chatBody.appendChild(botDiv);
-    chatBody.scrollTop = chatBody.scrollHeight;
-
-    // Type the store-locator reply (no API call)
-    (async () => {
-      const el = botDiv.querySelector(".message-text");
-      await typeInto(el, storeLocatorReply, 16);
-      chatHistory.push({ role: "model", parts: [{ text: storeLocatorReply }] });
-      trimHistory();
-    })();
-    // clear attachments flag if any
-    selectedImages = [];
-    formEl.classList.remove("has-attachments");
-    return;
-  }
-
   // thinking bubble
-  const botThinking = `
+  const botThinkingContent = `
     <div class="message-text">
       <div class="thinking-indicator">
         <div class="dot"></div><div class="dot"></div><div class="dot"></div>
       </div>
-    </div>`;
-  const incomingMessageDiv = createMessageElement(botThinking, "bot-message", "thinking");
+    </div>
+  `;
+  const incomingMessageDiv = createMessageElement(botThinkingContent, "bot-message", "thinking");
   chatBody.appendChild(incomingMessageDiv);
   chatBody.scrollTop = chatBody.scrollHeight;
 
-  // call API
   generateBotResponse(incomingMessageDiv);
 };
 
 // Submit + Enter to send
 document.querySelector(".chat-form").addEventListener("submit", handleOutgoingMessage);
 messageInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !e.shiftKey) handleOutgoingMessage(e);
+  if (e.key === "Enter" && !e.shiftKey) {
+    handleOutgoingMessage(e);
+  }
 });
