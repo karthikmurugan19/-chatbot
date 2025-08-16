@@ -38,7 +38,7 @@ const inputCamera = document.querySelector("#file-camera");
 const formEl = document.querySelector(".chat-form");
 
 // ===== Config / Constants =====
-const API_KEY = "YOUR_GEMINI_API_KEY_HERE"; // ⚠️ Replace + proxy in production
+const API_KEY = "AIzaSyDjWSYA7pDcUiddC3SvhJnxTXBAie1j4WE"; // ⚠️ Replace + proxy in production
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
 
 const STORE_LOCATOR_URL = "https://www.healthyplanetcanada.com/storelocator";
