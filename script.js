@@ -129,7 +129,7 @@ const processLinks = (text) => {
   return text.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
 };
 
-// Enhanced response processing with better link integration - IMPROVED VERSION
+// Enhanced response processing with better link integration - FINAL VERSION
 const enhanceResponse = (text, userQuery) => {
   let enhanced = text;
   
@@ -140,89 +140,13 @@ const enhanceResponse = (text, userQuery) => {
   // FIRST: Replace any raw URLs with "click here" links
   // Replace store locator URL
   enhanced = enhanced.replace(
-    new RegExp(STORE_LOCATOR_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\// Enhanced response processing with better link integration - FIXED VERSION
-const enhanceResponse = (text, userQuery) => {
-  let enhanced = text;
-  
-  // Debug logging
-  console.log('Original text:', text);
-  console.log('User query:', userQuery);
-  
-  // Check if user asked about store info and response doesn't already have store locator
-  if (isStoreRelated(userQuery) && !enhanced.includes(STORE_LOCATOR_URL)) {
-    console.log('Adding store locator link');
-    // Look for natural places to insert store locator link
-    if (enhanced.includes('store') || enhanced.includes('location') || enhanced.includes('hours')) {
-      enhanced = enhanced.replace(
-        /(store[s]?|location[s]?|hours?|address|phone|contact)/i,
-        `$1 (<a href="${STORE_LOCATOR_URL}" target="_blank" rel="noopener noreferrer">click here</a>)`
-      );
-    } else {
-      enhanced += ` You can find store details <a href="${STORE_LOCATOR_URL}" target="_blank" rel="noopener noreferrer">here</a>.`;
-    }
-  }
-  
-  // Check if user asked about returns and response doesn't already have return policy
-  if (isReturnRelated(userQuery) && !enhanced.includes(RETURN_POLICY_URL)) {
-    console.log('Adding return policy link');
-    // Look for natural places to insert return policy link
-    if (enhanced.includes('return') || enhanced.includes('refund') || enhanced.includes('exchange')) {
-      enhanced = enhanced.replace(
-        /(return[s]?|refund[s]?|exchange[s]?|policy)/i,
-        `$1 (<a href="${RETURN_POLICY_URL}" target="_blank" rel="noopener noreferrer">click here</a>)`
-      );
-    } else {
-      enhanced += ` Check our return policy <a href="${RETURN_POLICY_URL}" target="_blank" rel="noopener noreferrer">here</a> for complete details.`;
-    }
-  }
-  
-  console.log('Enhanced text:', enhanced);
-  return enhanced;
-};'), 'gi'),
+    new RegExp(STORE_LOCATOR_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'),
     `<a href="${STORE_LOCATOR_URL}" target="_blank" rel="noopener noreferrer">click here</a>`
   );
   
   // Replace return policy URL
   enhanced = enhanced.replace(
-    new RegExp(RETURN_POLICY_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\// Enhanced response processing with better link integration - FIXED VERSION
-const enhanceResponse = (text, userQuery) => {
-  let enhanced = text;
-  
-  // Debug logging
-  console.log('Original text:', text);
-  console.log('User query:', userQuery);
-  
-  // Check if user asked about store info and response doesn't already have store locator
-  if (isStoreRelated(userQuery) && !enhanced.includes(STORE_LOCATOR_URL)) {
-    console.log('Adding store locator link');
-    // Look for natural places to insert store locator link
-    if (enhanced.includes('store') || enhanced.includes('location') || enhanced.includes('hours')) {
-      enhanced = enhanced.replace(
-        /(store[s]?|location[s]?|hours?|address|phone|contact)/i,
-        `$1 (<a href="${STORE_LOCATOR_URL}" target="_blank" rel="noopener noreferrer">click here</a>)`
-      );
-    } else {
-      enhanced += ` You can find store details <a href="${STORE_LOCATOR_URL}" target="_blank" rel="noopener noreferrer">here</a>.`;
-    }
-  }
-  
-  // Check if user asked about returns and response doesn't already have return policy
-  if (isReturnRelated(userQuery) && !enhanced.includes(RETURN_POLICY_URL)) {
-    console.log('Adding return policy link');
-    // Look for natural places to insert return policy link
-    if (enhanced.includes('return') || enhanced.includes('refund') || enhanced.includes('exchange')) {
-      enhanced = enhanced.replace(
-        /(return[s]?|refund[s]?|exchange[s]?|policy)/i,
-        `$1 (<a href="${RETURN_POLICY_URL}" target="_blank" rel="noopener noreferrer">click here</a>)`
-      );
-    } else {
-      enhanced += ` Check our return policy <a href="${RETURN_POLICY_URL}" target="_blank" rel="noopener noreferrer">here</a> for complete details.`;
-    }
-  }
-  
-  console.log('Enhanced text:', enhanced);
-  return enhanced;
-};'), 'gi'),
+    new RegExp(RETURN_POLICY_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'),
     `<a href="${RETURN_POLICY_URL}" target="_blank" rel="noopener noreferrer">click here</a>`
   );
   
