@@ -42,35 +42,61 @@ const formEl = document.querySelector(".chat-form");
 
 // ===== Gemini config =====
 const API_KEY = "AIzaSyDjWSYA7pDcUiddC3SvhJnxTXBAie1j4WE"; // ⚠️ Replace + proxy in production
-// Updated to use the stable gemini-2.0-flash model
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
+
+// ===== URLs =====
+const STORE_LOCATOR_URL = "https://www.healthyplanetcanada.com/storelocator";
+const RETURN_POLICY_URL = "https://www.healthyplanetcanada.com/return-policy";
 
 // ===== State =====
 const userData = { message: null };
-let selectedImages = []; // [{file, b64}]
+let selectedImages = []; // [{file, b64, preview}]
 const MAX_SIZE_MB = 8;
 
-const SYSTEM_INSTRUCTION = `You are a helpful assistant for Healthy Planet Canada.
-Stay focused on Healthy Planet stores, products, supplements, returns, or related services.
-If the topic is unrelated, gently say: "I'm here to help with Healthy Planet Canada. Please ask something related to it."
-Continue the conversation naturally without asking the user to repeat context. Keep replies concise and friendly.
+// Enhanced system instruction
+const SYSTEM_INSTRUCTION = `You are the official customer service assistant for Healthy Planet Canada, a health and wellness retail chain.
 
-Critical policies:
-- If a user asks about store information or operational hours, direct them to the Store Locator on the Healthy Planet Canada website. Offer to point them to the right page if they share their city or postal code.
-- Do not invent or guess answers. If uncertain, say so briefly and ask a helpful follow-up question.
-- Do NOT ask users to wait or say you'll get back later. Answer immediately with what you know and follow up with clarifying questions if needed.`;
+CRITICAL IDENTITY RULES:
+- You MUST identify yourself as "Healthy Planet Canada's assistant" 
+- You work for Healthy Planet Canada stores
+- Focus ONLY on Healthy Planet Canada products, services, stores, and policies
+- If asked about other retailers or unrelated topics, politely redirect: "I'm here to help with Healthy Planet Canada questions only. How can I assist you with our stores or products?"
 
-// Fixed chat history initialization - don't include system instruction in ongoing conversation
-let chatHistory = [];
-const systemMessage = { role: "user", parts: [{ text: SYSTEM_INSTRUCTION }] };
-const systemResponse = { role: "model", parts: [{ text: "I understand. I'm here to help with Healthy Planet Canada questions." }] };
+STORE & RETURN POLICY RESPONSES:
+- For ANY store-related questions (hours, locations, addresses, phone numbers, directions): Always include this link: ${STORE_LOCATOR_URL}
+- For ANY return, refund, or exchange questions: Always include this link: ${RETURN_POLICY_URL}
+- Format links as: "You can find details here: [Link Title](URL)"
 
-const MAX_TURNS = 12;
+HEALTHY PLANET CONTEXT:
+- Healthy Planet Canada is a health and wellness retailer
+- We sell supplements, vitamins, natural health products, organic foods, and wellness items
+- We have multiple store locations across Canada
+- We offer both in-store and online shopping
+- We focus on natural, organic, and health-conscious products
+- We focus on organic produce and organic dairy products
+
+RESPONSE STYLE:
+- Keep responses concise and helpful
+- Act like a knowledgeable store employee
+- Don't ask users to wait or say you'll get back to them
+- If you don't know something specific, admit it and direct them to the appropriate resource
+- Always maintain a friendly, professional tone as a Healthy Planet representative`;
+
+// Initialize with system instruction that stays in history
+let chatHistory = [
+  { role: "user", parts: [{ text: SYSTEM_INSTRUCTION }] },
+  { role: "model", parts: [{ text: "Hello! I'm your Healthy Planet Canada assistant. I'm here to help you with our stores, products, supplements, returns, and any other questions about Healthy Planet Canada. How can I assist you today?" }] }
+];
+
+const MAX_TURNS = 20; // Increased to maintain context better
 const trimHistory = () => {
-  // Keep system messages + last N conversation turns
-  const keepTurns = MAX_TURNS * 2; // user + model pairs
-  if (chatHistory.length > keepTurns) {
-    chatHistory = chatHistory.slice(-keepTurns);
+  // Always keep the system instruction (first 2 messages)
+  if (chatHistory.length > MAX_TURNS) {
+    chatHistory = [
+      chatHistory[0], // system instruction
+      chatHistory[1], // system response
+      ...chatHistory.slice(-(MAX_TURNS - 2))
+    ];
   }
 };
 
@@ -82,25 +108,38 @@ const createMessageElement = (content, ...classes) => {
   return div;
 };
 
+// Enhanced text cleaning that preserves links
 const cleanBotText = (raw = "") =>
   raw
     .replace(/```[\s\S]*?```/g, (m) => m.replace(/```/g, ""))
-    .replace(/\*\*(.*?)\*\*/g, "$1")
-    .replace(/__(.*?)__/g, "$1")
-    .replace(/\*(.*?)\*/g, "$1")
-    .replace(/_(.*?)_/g, "$1")
-    .replace(/~~(.*?)~~/g, "$1")
-    .replace(/`([^`]+)`/g, "$1")
-    .replace(/!\[(.*?)\]\(.*?\)/g, "$1")
-    .replace(/\[(.*?)\]\(.*?\)/g, "$1")
+    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+    .replace(/__(.*?)__/g, "<strong>$1</strong>")
+    .replace(/\*(.*?)\*/g, "<em>$1</em>")
+    .replace(/_(.*?)_/g, "<em>$1</em>")
+    .replace(/~~(.*?)~~/g, "<del>$1</del>")
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/^\s{0,3}#{1,6}\s+/gm, "")
     .replace(/^\s{0,3}>\s?/gm, "")
     .replace(/^\s*[-*+]\s+/gm, "")
     .replace(/^\s*\d+\.\s+/gm, "")
-    .replace(/<\/?([a-z][a-z0-9]*)\b[^>]*>/gi, "")
     .replace(/[ \t]{2,}/g, " ")
     .replace(/\n{3,}/g, "\n\n")
+    .replace(/\n/g, "<br>")
     .trim();
+
+// Convert markdown links to HTML
+const processLinks = (text) => {
+  return text.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+};
+
+// Auto-link store and return policy URLs
+const autoLinkPolicies = (text) => {
+  return text
+    .replace(new RegExp(STORE_LOCATOR_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), 
+             `<a href="${STORE_LOCATOR_URL}" target="_blank" rel="noopener noreferrer">Store Locator</a>`)
+    .replace(new RegExp(RETURN_POLICY_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), 
+             `<a href="${RETURN_POLICY_URL}" target="_blank" rel="noopener noreferrer">Return Policy</a>`);
+};
 
 const fileToBase64 = (file) => new Promise((resolve, reject) => {
   const r = new FileReader();
@@ -109,6 +148,20 @@ const fileToBase64 = (file) => new Promise((resolve, reject) => {
   r.readAsDataURL(file);
 });
 
+const createImagePreview = (file) => {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = document.createElement('img');
+      img.src = e.target.result;
+      img.style.cssText = 'width: 60px; height: 60px; object-fit: cover; border-radius: 8px; border: 2px solid #e5e7eb;';
+      img.alt = file.name;
+      resolve(img);
+    };
+    reader.readAsDataURL(file);
+  });
+};
+
 const addFiles = async (fileList) => {
   const files = Array.from(fileList || []).filter((f) => f.type.startsWith("image/"));
   for (const file of files) {
@@ -116,9 +169,65 @@ const addFiles = async (fileList) => {
       alert(`${file.name} is larger than ${MAX_SIZE_MB} MB`); 
       continue; 
     }
-    selectedImages.push({ file, b64: await fileToBase64(file) });
+    const b64 = await fileToBase64(file);
+    const preview = await createImagePreview(file);
+    selectedImages.push({ file, b64, preview });
   }
-  if (selectedImages.length) formEl.classList.add("has-attachments");
+  
+  // Show thumbnails when files are selected
+  if (selectedImages.length) {
+    formEl.classList.add("has-attachments");
+    updateImageThumbnails();
+  }
+};
+
+const updateImageThumbnails = () => {
+  // Remove existing thumbnails
+  const existingThumbnails = formEl.querySelector('.image-thumbnails');
+  if (existingThumbnails) {
+    existingThumbnails.remove();
+  }
+  
+  if (selectedImages.length > 0) {
+    const thumbnailContainer = document.createElement('div');
+    thumbnailContainer.className = 'image-thumbnails';
+    thumbnailContainer.style.cssText = 'display: flex; gap: 8px; padding: 8px; flex-wrap: wrap; background: #f8f9fa; border-radius: 8px; margin-bottom: 8px;';
+    
+    selectedImages.forEach((imgData, index) => {
+      const thumbnailWrapper = document.createElement('div');
+      thumbnailWrapper.style.cssText = 'position: relative;';
+      
+      const thumbnail = imgData.preview.cloneNode();
+      thumbnail.src = imgData.preview.src;
+      thumbnail.style.cssText = imgData.preview.style.cssText;
+      
+      // Add remove button
+      const removeBtn = document.createElement('button');
+      removeBtn.innerHTML = '×';
+      removeBtn.style.cssText = 'position: absolute; top: -5px; right: -5px; width: 20px; height: 20px; border: none; border-radius: 50%; background: #ef4444; color: white; cursor: pointer; font-size: 14px; line-height: 1;';
+      removeBtn.onclick = (e) => {
+        e.preventDefault();
+        selectedImages.splice(index, 1);
+        if (selectedImages.length === 0) {
+          formEl.classList.remove("has-attachments");
+        }
+        updateImageThumbnails();
+      };
+      
+      thumbnailWrapper.appendChild(thumbnail);
+      thumbnailWrapper.appendChild(removeBtn);
+      thumbnailContainer.appendChild(thumbnailWrapper);
+    });
+    
+    // Insert before the input area
+    const chatForm = document.querySelector('.chat-form');
+    const inputArea = chatForm.querySelector('.message-input') || chatForm.querySelector('input');
+    if (inputArea && inputArea.parentNode) {
+      inputArea.parentNode.insertBefore(thumbnailContainer, inputArea);
+    } else {
+      chatForm.insertBefore(thumbnailContainer, chatForm.firstChild);
+    }
+  }
 };
 
 function insertAtCursor(el, text){
@@ -127,10 +236,10 @@ function insertAtCursor(el, text){
   el.value = el.value.slice(0,start) + text + el.value.slice(end);
   const pos = start + text.length;
   el.setSelectionRange(pos, pos);
-  el.dispatchEvent(new Event('input', { bubbles: true })); // update :valid for send visibility
+  el.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
-// ===== Typing animation (greeting + all bot replies) =====
+// ===== Typing animation =====
 function typeInto(el, text, speed = 18){
   return new Promise((resolve) => {
     let i = 0;
@@ -150,7 +259,7 @@ function typeInto(el, text, speed = 18){
   chatBody.appendChild(msgDiv);
   await typeInto(
     msgDiv.querySelector(".message-text"),
-    "Hey there 👋😊\nWelcome to Healthy Planet Canada Online Assistant.\nHow can I help you today?",
+    "Hey there 👋😊\nI'm your Healthy Planet Canada assistant!\nI can help you with our stores, products, supplements, returns, and more.\nWhat can I help you find today?",
     14
   );
 })();
@@ -184,7 +293,6 @@ if (emojiBtn) {
       emojiBtn.addEventListener('click', (e) => {
         e.preventDefault();
         if (!pickerOpen) {
-          // Position it above the emoji button
           const rect = emojiBtn.getBoundingClientRect();
           emojiPicker.style.position = 'fixed';
           emojiPicker.style.right = `${window.innerWidth - rect.right}px`;
@@ -203,7 +311,6 @@ if (emojiBtn) {
         messageInput.focus();
       });
 
-      // Close picker if user clicks outside
       document.addEventListener('click', (ev) => {
         if (pickerOpen && !emojiPicker.contains(ev.target) && ev.target !== emojiBtn) {
           emojiPicker.remove();
@@ -213,35 +320,33 @@ if (emojiBtn) {
     })
     .catch(err => {
       console.warn("Emoji picker failed to load:", err);
-      // Hide emoji button if it fails to load
       if (emojiBtn) emojiBtn.style.display = 'none';
     });
 }
+
+// Detect store/return related queries
+const isStoreRelated = (text) => {
+  const storeKeywords = /\b(store|location|branch|shop|near|address|directions|hours?|open|close|phone|contact|where|find)\b/i;
+  return storeKeywords.test(text);
+};
+
+const isReturnRelated = (text) => {
+  const returnKeywords = /\b(return|refund|exchange|policy|bring back|take back|money back|warranty)\b/i;
+  return returnKeywords.test(text);
+};
 
 // ===== Gemini call =====
 const generateBotResponse = async (incomingMessageDiv) => {
   const messageElement = incomingMessageDiv.querySelector(".message-text");
 
   try {
-    // Build the request with proper structure
-    const requestContents = [];
-    
-    // Add system instruction at the beginning if this is the first call
-    if (chatHistory.length === 0) {
-      requestContents.push(systemMessage);
-      requestContents.push(systemResponse);
-    }
-    
-    // Add conversation history
-    requestContents.push(...chatHistory);
-
     const requestOptions = {
       method: "POST",
       headers: { 
         "Content-Type": "application/json"
       },
       body: JSON.stringify({ 
-        contents: requestContents,
+        contents: chatHistory,
         generationConfig: {
           temperature: 0.7,
           topK: 40,
@@ -274,18 +379,18 @@ const generateBotResponse = async (incomingMessageDiv) => {
     
     if (!response.ok) {
       console.error("API Error Response:", data);
-      let errorMessage = "⚠️ Something went wrong. Please try again later.";
+      let errorMessage = "⚠️ I'm having trouble connecting right now. Please try again in a moment.";
       
       if (data?.error?.message) {
         const errorMsg = data.error.message.toLowerCase();
         if (errorMsg.includes('api key') || errorMsg.includes('authentication')) {
-          errorMessage = "⚠️ API authentication issue. Please check configuration.";
+          errorMessage = "⚠️ Authentication issue. Please contact our technical support.";
         } else if (errorMsg.includes('quota') || errorMsg.includes('limit')) {
-          errorMessage = "⚠️ API quota exceeded. Please try again later.";
+          errorMessage = "⚠️ Service temporarily busy. Please try again in a few minutes.";
         } else if (errorMsg.includes('model') || errorMsg.includes('not found')) {
-          errorMessage = "⚠️ Model not available. Please contact support.";
+          errorMessage = "⚠️ Service temporarily unavailable. Please contact our support team.";
         } else if (errorMsg.includes('blocked') || errorMsg.includes('safety')) {
-          errorMessage = "⚠️ Content was blocked for safety reasons. Please rephrase your message.";
+          errorMessage = "⚠️ I couldn't process that request. Please rephrase your question about Healthy Planet Canada.";
         }
       }
       
@@ -294,24 +399,43 @@ const generateBotResponse = async (incomingMessageDiv) => {
 
     const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!raw) {
-      throw new Error("⚠️ Empty response from API. Please try again.");
+      throw new Error("⚠️ I didn't receive a proper response. Please try asking again.");
     }
 
-    const apiResponseText = cleanBotText(raw);
+    let apiResponseText = cleanBotText(raw);
+    
+    // Process links and auto-link policies
+    apiResponseText = processLinks(apiResponseText);
+    apiResponseText = autoLinkPolicies(apiResponseText);
+    
+    // Check if user asked about store/return info and ensure links are included
+    const lastUserMessage = chatHistory[chatHistory.length - 1];
+    const userText = lastUserMessage?.parts?.[0]?.text || '';
+    
+    if (isStoreRelated(userText) && !apiResponseText.includes(STORE_LOCATOR_URL)) {
+      apiResponseText += `<br><br>Find store details here: <a href="${STORE_LOCATOR_URL}" target="_blank" rel="noopener noreferrer">Store Locator</a>`;
+    }
+    
+    if (isReturnRelated(userText) && !apiResponseText.includes(RETURN_POLICY_URL)) {
+      apiResponseText += `<br><br>Check our return policy: <a href="${RETURN_POLICY_URL}" target="_blank" rel="noopener noreferrer">Return Policy</a>`;
+    }
 
-    // Type the reply
-    await typeInto(messageElement, apiResponseText, 16);
+    // Type as plain text first, then replace with HTML
+    const plainText = apiResponseText.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ');
+    await typeInto(messageElement, plainText, 16);
+    messageElement.innerHTML = apiResponseText;
 
     // Add to history
-    chatHistory.push({ role: "model", parts: [{ text: apiResponseText }] });
+    chatHistory.push({ role: "model", parts: [{ text: raw }] }); // Store original response
     trimHistory();
 
   } catch (err) {
     console.error("❌ API Error:", err);
-    messageElement.innerText = err.message || "⚠️ Something went wrong. Please try again later.";
+    messageElement.innerHTML = err.message || "⚠️ I'm having trouble right now. Please try again later, or visit our <a href='https://www.healthyplanetcanada.com' target='_blank'>website</a> for immediate assistance.";
   } finally {
     selectedImages = [];
     formEl.classList.remove("has-attachments");
+    updateImageThumbnails(); // Clear thumbnails
     incomingMessageDiv.classList.remove("thinking");
     chatBody.scrollTop = chatBody.scrollHeight;
   }
@@ -322,41 +446,37 @@ const handleOutgoingMessage = (e) => {
   e.preventDefault();
   userData.message = messageInput.value.trim();
 
-  // ensure open
   openChat();
 
-  // allow sending if text or images present
   if (!userData.message && selectedImages.length === 0) return;
 
-  // user bubble (text)
+  // User bubble
   const messageContent = `<div class="message-text"></div>`;
   const outgoingMessageDiv = createMessageElement(messageContent, "user-message");
   outgoingMessageDiv.querySelector(".message-text").textContent =
     userData.message || "(sent image)";
   chatBody.appendChild(outgoingMessageDiv);
 
-  // image previews
+  // Image previews in message
   if (selectedImages.length) {
     const imgWrap = document.createElement("div");
     imgWrap.className = "image-preview-wrap";
-    Object.assign(imgWrap.style, { display:"flex", flexWrap:"wrap", gap:"8px", marginTop:"8px" });
+    imgWrap.style.cssText = "display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;";
+    
     selectedImages.forEach(({ file }) => {
       const url = URL.createObjectURL(file);
       const img = document.createElement("img");
-      Object.assign(img.style, {
-        width:"120px", height:"120px", objectFit:"cover",
-        borderRadius:"12px", border:"1px solid #e5e7eb"
-      });
-      img.src = url; img.alt = file.name;
+      img.style.cssText = "width: 120px; height: 120px; object-fit: cover; border-radius: 12px; border: 1px solid #e5e7eb;";
+      img.src = url; 
+      img.alt = file.name;
       imgWrap.appendChild(img);
     });
     outgoingMessageDiv.appendChild(imgWrap);
   }
 
-  // Build user message parts properly
+  // Build user message parts
   const userParts = [];
   
-  // Add images first if any
   if (selectedImages.length) {
     selectedImages.forEach(({ file, b64 }) => {
       userParts.push({
@@ -368,20 +488,19 @@ const handleOutgoingMessage = (e) => {
     });
   }
   
-  // Add text
   if (userData.message) {
     userParts.push({ text: userData.message });
   }
 
-  // Add to history with proper structure
+  // Add to history
   chatHistory.push({ role: "user", parts: userParts });
   trimHistory();
 
-  // reset input + scroll
+  // Reset input
   messageInput.value = "";
   chatBody.scrollTop = chatBody.scrollHeight;
 
-  // thinking bubble
+  // Thinking bubble
   const botThinkingContent = `
     <div class="message-text">
       <div class="thinking-indicator">
