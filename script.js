@@ -38,7 +38,7 @@ const inputCamera = document.querySelector("#file-camera");
 const formEl = document.querySelector(".chat-form");
 
 // ===== Config / Constants =====
-const API_KEY = "AIzaSyDjWSYA7pDcUiddC3SvhJnxTXBAie1j4WE"; // ⚠️ Replace + proxy in production
+const API_KEY = "YOUR_GEMINI_API_KEY_HERE"; // ⚠️ Replace + proxy in production
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
 
 const STORE_LOCATOR_URL = "https://www.healthyplanetcanada.com/storelocator";
@@ -189,7 +189,7 @@ const storeLocatorReply =
     14
   );
 
-  // Inline FAQ under the first bot message (clickable)
+  // Inline FAQ under the first bot message (two links only)
   const faq = document.createElement("div");
   faq.className = "faq-inline";
   faq.innerHTML = `
@@ -197,22 +197,10 @@ const storeLocatorReply =
     <a href="${STORE_LOCATOR_URL}" target="_blank" rel="noopener">Store Locator & Hours</a>
     <span class="sep">•</span>
     <a href="${RETURN_POLICY_URL}" target="_blank" rel="noopener">Return & Refund Policy</a>
-    <span class="sep">•</span>
-    <button type="button" class="faq-inline-btn" data-prompt="How can I contact Healthy Planet customer support?">
-      Contact Customer Support
-    </button>
   `;
   textEl.appendChild(faq);
   chatBody.scrollTop = chatBody.scrollHeight;
 })();
-
-// Inline FAQ action: send “Contact Customer Support” prompt
-chatBody.addEventListener("click", (e) => {
-  const btn = e.target.closest(".faq-inline-btn[data-prompt]");
-  if (!btn) return;
-  messageInput.value = btn.dataset.prompt || "";
-  document.querySelector(".chat-form").dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
-});
 
 // ===== Image buttons =====
 attachBtn?.addEventListener("click", () => inputAttach.click());
