@@ -136,10 +136,15 @@ const enhanceResponse = (text, userQuery) => {
   // Check if user asked about store info and response doesn't already have store locator
   if (isStoreRelated(userQuery) && !enhanced.includes(STORE_LOCATOR_URL)) {
     // Look for natural places to insert store locator link
-    if (enhanced.includes('store') || enhanced.includes('location') || enhanced.includes('hours')) {
+    if (enhanced.includes('store locator')) {
+      enhanced = enhanced.replace(
+        /store locator/i,
+        `<a href="${STORE_LOCATOR_URL}" target="_blank" rel="noopener noreferrer">store locator</a>`
+      );
+    } else if (enhanced.includes('store') || enhanced.includes('location') || enhanced.includes('hours')) {
       enhanced = enhanced.replace(
         /(store[s]?|location[s]?|hours?|address|phone|contact)/i,
-        `$1 (check our <a href="${STORE_LOCATOR_URL}" target="_blank" rel="noopener noreferrer">store locator</a>)`
+        `$1 (<a href="${STORE_LOCATOR_URL}" target="_blank" rel="noopener noreferrer">store locator</a>)`
       );
     } else {
       enhanced += ` You can find store details at our <a href="${STORE_LOCATOR_URL}" target="_blank" rel="noopener noreferrer">store locator</a>.`;
@@ -149,10 +154,15 @@ const enhanceResponse = (text, userQuery) => {
   // Check if user asked about returns and response doesn't already have return policy
   if (isReturnRelated(userQuery) && !enhanced.includes(RETURN_POLICY_URL)) {
     // Look for natural places to insert return policy link
-    if (enhanced.includes('return') || enhanced.includes('refund') || enhanced.includes('exchange')) {
+    if (enhanced.includes('return policy')) {
       enhanced = enhanced.replace(
-        /(return[s]?|refund[s]?|exchange[s]?|policy)/i,
-        `$1 (see our <a href="${RETURN_POLICY_URL}" target="_blank" rel="noopener noreferrer">return policy</a>)`
+        /return policy/gi,
+        `<a href="${RETURN_POLICY_URL}" target="_blank" rel="noopener noreferrer">return policy</a>`
+      );
+    } else if (enhanced.includes('return') || enhanced.includes('refund') || enhanced.includes('exchange')) {
+      enhanced = enhanced.replace(
+        /(return[s]?|refund[s]?|exchange[s]?)/i,
+        `$1 (<a href="${RETURN_POLICY_URL}" target="_blank" rel="noopener noreferrer">return policy</a>)`
       );
     } else {
       enhanced += ` Check our <a href="${RETURN_POLICY_URL}" target="_blank" rel="noopener noreferrer">return policy</a> for complete details.`;
@@ -430,6 +440,10 @@ const generateBotResponse = async (incomingMessageDiv) => {
     
     // Process markdown links first
     apiResponseText = processLinks(apiResponseText);
+    
+    // Remove any raw URLs and replace with clean text
+    apiResponseText = apiResponseText.replace(new RegExp(STORE_LOCATOR_URL, 'g'), 'store locator');
+    apiResponseText = apiResponseText.replace(new RegExp(RETURN_POLICY_URL, 'g'), 'return policy');
     
     // Get user query for context
     const lastUserMessage = chatHistory[chatHistory.length - 1];
